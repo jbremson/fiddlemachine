@@ -1,9 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { TuneBrowser } from './components/TuneBrowser';
 import { NotationView } from './components/NotationView';
-import { NotationViewV1 } from './components/NotationViewV1';
-import { NotationViewV2 } from './components/NotationViewV2';
-import { NotationViewV3 } from './components/NotationViewV3';
 import { TransportControls } from './components/TransportControls';
 import { TempoSlider } from './components/TempoSlider';
 import { SectionSelector } from './components/SectionSelector';
@@ -16,8 +13,6 @@ import { tunePlayer } from './audio/player';
 import { SynthType, MetronomeType } from './audio/synth';
 import { Tune, TuneSummary, PlaybackState, SectionMode } from './types/tune';
 import './styles/main.css';
-
-type HighlightVersion = 'current' | 'v1' | 'v2' | 'v3';
 
 export function App() {
   const [tunes, setTunes] = useState<TuneSummary[]>([]);
@@ -34,7 +29,6 @@ export function App() {
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
   const [metronomeType, setMetronomeType] = useState<MetronomeType>('click1');
   const [highlightOffset, setHighlightOffset] = useState(0);
-  const [highlightVersion, setHighlightVersion] = useState<HighlightVersion>('v1');
 
   // Fetch tune list on mount
   useEffect(() => {
@@ -144,28 +138,6 @@ export function App() {
   const hasASections = selectedTune?.sections.some((s) => s.name === 'A') ?? false;
   const hasBSections = selectedTune?.sections.some((s) => s.name === 'B') ?? false;
 
-  const renderNotationView = () => {
-    const props = {
-      tune: selectedTune,
-      transpose,
-      progress,
-      isPlaying: playbackState === 'playing',
-      highlightOffset
-    };
-
-    switch (highlightVersion) {
-      case 'v1':
-        return <NotationViewV1 {...props} />;
-      case 'v2':
-        return <NotationViewV2 {...props} />;
-      case 'v3':
-        return <NotationViewV3 {...props} />;
-      case 'current':
-      default:
-        return <NotationView {...props} />;
-    }
-  };
-
   return (
     <div className="app">
       <header className="app-header">
@@ -184,7 +156,13 @@ export function App() {
         </aside>
 
         <section className="content">
-          {renderNotationView()}
+          <NotationView
+            tune={selectedTune}
+            transpose={transpose}
+            progress={progress}
+            isPlaying={playbackState === 'playing'}
+            highlightOffset={highlightOffset}
+          />
 
           <div className="controls">
             <TransportControls
@@ -234,34 +212,6 @@ export function App() {
               offset={highlightOffset}
               onOffsetChange={setHighlightOffset}
             />
-
-            <div className="highlight-switcher">
-              <span>Highlight:</span>
-              <button
-                className={highlightVersion === 'current' ? 'active' : ''}
-                onClick={() => setHighlightVersion('current')}
-              >
-                Current
-              </button>
-              <button
-                className={highlightVersion === 'v1' ? 'active' : ''}
-                onClick={() => setHighlightVersion('v1')}
-              >
-                V1
-              </button>
-              <button
-                className={highlightVersion === 'v2' ? 'active' : ''}
-                onClick={() => setHighlightVersion('v2')}
-              >
-                V2
-              </button>
-              <button
-                className={highlightVersion === 'v3' ? 'active' : ''}
-                onClick={() => setHighlightVersion('v3')}
-              >
-                V3
-              </button>
-            </div>
           </div>
         </section>
       </main>

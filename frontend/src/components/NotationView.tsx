@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import * as abcjs from 'abcjs';
 import { Tune } from '../types/tune';
 
@@ -8,12 +8,6 @@ interface NotationViewProps {
   progress: number;
   isPlaying: boolean;
   highlightOffset?: number;
-}
-
-interface NoteElement {
-  element: Element;
-  startTime: number;
-  endTime: number;
 }
 
 // Transpose functions
@@ -86,174 +80,112 @@ function transposeMusicLine(line: string, semitones: number): string {
   });
 }
 
-// Use note index directly based on progress ratio
-// Maps progress to note index, matching player.ts pickup handling
+// Minimal approach - no useState, direct DOM manipulation in single useEffect
 export function NotationView({ tune, transpose, progress, isPlaying, highlightOffset = 0 }: NotationViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [noteElements, setNoteElements] = useState<NoteElement[]>([]);
-  const [currentNoteIdx, setCurrentNoteIdx] = useState(-1);
+  const lastHighlightedRef = useRef<Element | null>(null);
 
-  // Get beats per measure from time signature (matching player.ts)
-  const getBeatsPerMeasure = useCallback((): number => {
-    if (!tune) return 4;
-    const timeParts = tune.time_signature.split('/');
-    return parseInt(timeParts[0]) || 4;
-  }, [tune]);
-
-  const mapNoteElements = useCallback(() => {
-    if (!containerRef.current || !tune) return [];
-    const svg = containerRef.current.querySelector('svg');
-    if (!svg) return [];
-    const noteEls = svg.querySelectorAll('.abcjs-note');
-    const elements: NoteElement[] = [];
-    tune.sections.forEach(section => {
-      section.notes.forEach(note => {
-        const idx = elements.length;
-        if (idx < noteEls.length) {
-          elements.push({
-            element: noteEls[idx],
-            startTime: note.start_time,
-            endTime: note.start_time + note.duration
-          });
-        }
-      });
-    });
-    return elements;
-  }, [tune]);
-
+  // Render ABC
   useEffect(() => {
-    if (!containerRef.current || !tune) {
-      setNoteElements([]);
-      return;
-    }
+    if (!containerRef.current || !tune) return;
     const transposedAbc = transposeAbc(tune.abc, transpose);
     abcjs.renderAbc(containerRef.current, transposedAbc, {
       responsive: 'resize',
       add_classes: true,
       staffwidth: 700,
     });
-    requestAnimationFrame(() => {
-      setNoteElements(mapNoteElements());
+  }, [tune, transpose]);
+
+  // Update highlighting - runs on every progress change
+  useEffect(() => {
+    if (!containerRef.current || !tune) return;
+
+    const svg = containerRef.current.querySelector('svg');
+    if (!svg) return;
+
+    const noteEls = svg.querySelectorAll('.abcjs-note');
+    if (noteEls.length === 0) return;
+
+    // Build mapping of note elements to sections
+    let totalNoteCount = 0;
+    tune.sections.forEach(section => {
+      totalNoteCount += section.notes.length;
     });
-  }, [tune, transpose, mapNoteElements]);
 
-  // Build a flat timeline matching player.ts logic exactly
-  const getCurrentNoteIndex = useCallback((): number => {
-    if (!tune || noteElements.length === 0) return -1;
+    if (totalNoteCount === 0 || noteEls.length === 0) return;
 
-    const beatsPerMeasure = getBeatsPerMeasure();
-    const timeline: { noteIdx: number; progressStart: number; progressEnd: number }[] = [];
-
-    // First pass: calculate total duration matching player.ts
-    let totalDuration = 0;
+    // Calculate total duration (each section plays twice)
+    let totalBeats = 0;
     tune.sections.forEach(section => {
       const sectionBeats = section.notes.length > 0
         ? Math.max(...section.notes.map(n => n.start_time + n.duration))
-        : 4;
-
-      // Detect pickup (matching player.ts logic)
-      const barsFloat = sectionBeats / beatsPerMeasure;
-      const fullBars = Math.floor(barsFloat);
-      const pickupBeats = sectionBeats - (fullBars * beatsPerMeasure);
-      const hasPickup = pickupBeats > 0 && pickupBeats < beatsPerMeasure;
-
-      // First pass: full section
-      totalDuration += sectionBeats;
-      // Second pass: section minus pickup (if any)
-      totalDuration += hasPickup ? (sectionBeats - pickupBeats) : sectionBeats;
+        : 0;
+      totalBeats += sectionBeats * 2;
     });
 
-    if (totalDuration === 0) return -1;
+    if (totalBeats === 0) return;
 
-    // Second pass: build timeline
-    let currentTime = 0;
+    // Current beat
+    const currentBeat = Math.max(0, progress * totalBeats - highlightOffset);
+
+    // Find which note to highlight
+    let noteIdx = -1;
+    let beatOffset = 0;
     let noteOffset = 0;
 
-    tune.sections.forEach(section => {
+    outer:
+    for (const section of tune.sections) {
       const sectionBeats = section.notes.length > 0
         ? Math.max(...section.notes.map(n => n.start_time + n.duration))
-        : 4;
+        : 0;
 
-      // Detect pickup (matching player.ts logic)
-      const barsFloat = sectionBeats / beatsPerMeasure;
-      const fullBars = Math.floor(barsFloat);
-      const pickupBeats = sectionBeats - (fullBars * beatsPerMeasure);
-      const hasPickup = pickupBeats > 0 && pickupBeats < beatsPerMeasure;
+      for (let pass = 0; pass < 2; pass++) {
+        if (currentBeat >= beatOffset && currentBeat < beatOffset + sectionBeats) {
+          const beatInSection = currentBeat - beatOffset;
 
-      // First pass: all notes
-      section.notes.forEach((note, idx) => {
-        const startProgress = (currentTime + note.start_time) / totalDuration;
-        const endProgress = (currentTime + note.start_time + note.duration) / totalDuration;
-        timeline.push({
-          noteIdx: noteOffset + idx,
-          progressStart: startProgress,
-          progressEnd: endProgress
-        });
-      });
-      currentTime += sectionBeats;
+          // Find note at this beat
+          for (let i = 0; i < section.notes.length; i++) {
+            const note = section.notes[i];
+            if (beatInSection >= note.start_time && beatInSection < note.start_time + note.duration) {
+              noteIdx = noteOffset + i;
+              break outer;
+            }
+          }
 
-      // Second pass: skip pickup notes on repeat (matching player.ts)
-      const skipBeats = hasPickup ? pickupBeats : 0;
-      section.notes.forEach((note, idx) => {
-        // Skip pickup notes on repeat
-        if (note.start_time < skipBeats) {
-          return;
+          // Fallback: last note that started before current beat
+          for (let i = section.notes.length - 1; i >= 0; i--) {
+            if (section.notes[i].start_time <= beatInSection) {
+              noteIdx = noteOffset + i;
+              break outer;
+            }
+          }
         }
-        const adjustedStart = note.start_time - skipBeats;
-        const startProgress = (currentTime + adjustedStart) / totalDuration;
-        const endProgress = (currentTime + adjustedStart + note.duration) / totalDuration;
-        timeline.push({
-          noteIdx: noteOffset + idx,
-          progressStart: startProgress,
-          progressEnd: endProgress
-        });
-      });
-      currentTime += hasPickup ? (sectionBeats - pickupBeats) : sectionBeats;
-
+        beatOffset += sectionBeats;
+      }
       noteOffset += section.notes.length;
-    });
-
-    // Apply highlight offset (convert beats to progress)
-    const offsetProgress = (highlightOffset / totalDuration);
-    const adjustedProgress = Math.max(0, Math.min(1, progress - offsetProgress));
-
-    // Find the note that contains this progress
-    for (const entry of timeline) {
-      if (adjustedProgress >= entry.progressStart && adjustedProgress < entry.progressEnd) {
-        return entry.noteIdx;
-      }
     }
 
-    // Find the last note that started before current progress
-    let lastIdx = -1;
-    for (const entry of timeline) {
-      if (entry.progressStart <= adjustedProgress) {
-        lastIdx = entry.noteIdx;
-      }
+    // Update DOM directly
+    if (lastHighlightedRef.current) {
+      lastHighlightedRef.current.classList.remove('abcjs-note-playing');
     }
 
-    return lastIdx >= 0 ? lastIdx : 0;
-  }, [tune, noteElements, progress, highlightOffset, getBeatsPerMeasure]);
+    if (noteIdx >= 0 && noteIdx < noteEls.length) {
+      const newEl = noteEls[noteIdx];
+      newEl.classList.add('abcjs-note-playing');
+      lastHighlightedRef.current = newEl;
+    } else {
+      lastHighlightedRef.current = null;
+    }
+  }, [tune, progress, highlightOffset]);
 
+  // Clear on stop
   useEffect(() => {
-    const newIdx = getCurrentNoteIndex();
-    if (newIdx !== currentNoteIdx) {
-      if (currentNoteIdx >= 0 && currentNoteIdx < noteElements.length) {
-        noteElements[currentNoteIdx].element.classList.remove('abcjs-note-playing');
-      }
-      if (newIdx >= 0 && newIdx < noteElements.length) {
-        noteElements[newIdx].element.classList.add('abcjs-note-playing');
-      }
-      setCurrentNoteIdx(newIdx);
+    if (!isPlaying && progress === 0 && lastHighlightedRef.current) {
+      lastHighlightedRef.current.classList.remove('abcjs-note-playing');
+      lastHighlightedRef.current = null;
     }
-  }, [getCurrentNoteIndex, currentNoteIdx, noteElements]);
-
-  useEffect(() => {
-    if (!isPlaying && progress === 0) {
-      noteElements.forEach(ne => ne.element.classList.remove('abcjs-note-playing'));
-      setCurrentNoteIdx(-1);
-    }
-  }, [isPlaying, progress, noteElements]);
+  }, [isPlaying, progress]);
 
   if (!tune) {
     return (<div className="notation-view empty"><p>Select a tune to view notation</p></div>);
