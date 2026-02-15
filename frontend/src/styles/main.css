@@ -196,6 +196,21 @@ body {
           drop-shadow(0 0 8px rgba(255, 215, 0, 0.6));
 }
 
+/* V3: Note-level highlighting */
+.notation-view-v3 .notation-container svg .abcjs-note {
+  transition: filter 0.1s ease-in-out, transform 0.1s ease-in-out;
+}
+
+.notation-view-v3 .notation-container svg .abcjs-note.abcjs-note-playing {
+  filter: drop-shadow(0 0 6px var(--highlight-color))
+          drop-shadow(0 0 12px rgba(255, 215, 0, 0.8));
+}
+
+.notation-view-v3 .notation-container svg .abcjs-note.abcjs-note-playing path,
+.notation-view-v3 .notation-container svg .abcjs-note.abcjs-note-playing ellipse {
+  fill: var(--primary-light);
+}
+
 /* NotationViewV3 - Sliding spotlight/gradient background effect */
 .notation-view-v3 .notation-wrapper {
   position: relative;
