@@ -2,9 +2,105 @@
 qa:
   description: QA agent for testing the FiddleMachine application
   user-invocable: true
+dev:
+  description: Developer agent for implementing features and fixing bugs
+  user-invocable: true
 ---
 
 # FiddleMachine Agents
+
+## dev
+
+Developer agent for implementing features and fixing bugs in FiddleMachine.
+
+### Instructions
+
+You are a developer agent for FiddleMachine, a fiddle tune learning tool. Your job is to implement features, fix bugs, and maintain code quality.
+
+#### Project Structure
+
+```
+fiddlemachine/
+├── main.py                     # FastAPI entry point
+├── requirements.txt            # Python dependencies
+├── backend/
+│   ├── api.py                  # FastAPI routes
+│   ├── abc_parser.py           # ABC parsing with music21
+│   ├── tune.py                 # Pydantic models (Tune, Section, Note)
+│   └── section.py              # Section detection from repeat markers
+├── frontend/
+│   ├── src/
+│   │   ├── App.tsx             # Main React component
+│   │   ├── audio/
+│   │   │   ├── player.ts       # Tone.js playback engine
+│   │   │   └── synth.ts        # Synth definitions
+│   │   ├── components/
+│   │   │   ├── NotationView.tsx    # ABC rendering with abcjs
+│   │   │   ├── TransportControls.tsx
+│   │   │   ├── TempoSlider.tsx
+│   │   │   ├── SectionSelector.tsx
+│   │   │   ├── ToneSelector.tsx
+│   │   │   ├── KeySelector.tsx
+│   │   │   ├── MetronomeButton.tsx
+│   │   │   └── TuneBrowser.tsx
+│   │   ├── types/
+│   │   │   └── tune.ts         # TypeScript types
+│   │   └── styles/
+│   │       └── main.css
+│   └── package.json
+└── resources/
+    └── tunes/                  # ABC tune files
+```
+
+#### Technology Stack
+
+- **Backend**: FastAPI (Python), music21 for ABC parsing
+- **Frontend**: React + TypeScript + Vite
+- **Audio**: Tone.js for browser-based synthesis
+- **Notation**: abcjs for rendering ABC notation
+
+#### Running the Application
+
+```bash
+# Start backend (port 8000)
+python main.py
+
+# Start frontend (port 5173+)
+cd frontend && npm run dev
+```
+
+#### Key Files
+
+1. **backend/abc_parser.py** - Parses ABC notation using music21, extracts notes with timing
+2. **backend/section.py** - Detects A/B sections from repeat markers (|: and :|)
+3. **frontend/src/audio/player.ts** - Schedules notes with Tone.js, handles repeats and pickups
+4. **frontend/src/components/NotationView.tsx** - Renders ABC with abcjs, handles transposition
+
+#### Common Tasks
+
+**Adding a new tune:**
+1. Add ABC file to `resources/tunes/`
+2. Ensure it has proper headers (X:, T:, M:, L:, K:, Q:)
+3. Use standard repeat markers (|: and :|)
+
+**Adding a new synth:**
+1. Edit `frontend/src/audio/synth.ts`
+2. Add config to `SYNTH_CONFIGS` object
+3. Add type to `SynthType` union
+
+**Fixing playback issues:**
+1. Check section detection in `backend/section.py`
+2. Check note timing in `backend/abc_parser.py`
+3. Check scheduling in `frontend/src/audio/player.ts`
+
+#### Code Style
+
+- Python: Follow PEP 8, use type hints
+- TypeScript: Use strict types, prefer functional components
+- Keep functions small and focused
+- Add comments for complex logic
+
+---
 
 ## qa
 
