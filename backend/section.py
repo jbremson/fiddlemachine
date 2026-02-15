@@ -70,6 +70,7 @@ def _sections_from_repeats(music: str) -> list[dict]:
     # Match: |: (start repeat), :| (end repeat), :||: (end and start), || (double bar), | (single bar)
     tokens = re.split(r'(\:\|\|?\:|\|\:|\:\||\|\||\|)', music)
 
+    just_ended_section = False
     for token in tokens:
         token = token.strip()
         if not token:
@@ -77,7 +78,10 @@ def _sections_from_repeats(music: str) -> list[dict]:
 
         if token == '|:':
             # Start of repeat section - mark where this section begins
-            section_start_measure = current_measure
+            # But only if we didn't just end a section (which already set the next start)
+            if not just_ended_section:
+                section_start_measure = current_measure
+            just_ended_section = False
         elif token == ':|' or token == ':||:' or token == ':|:':
             # End of repeat section
             section_count += 1
@@ -85,12 +89,13 @@ def _sections_from_repeats(music: str) -> list[dict]:
             sections.append({
                 'name': name,
                 'start_measure': section_start_measure,
-                'end_measure': current_measure - 1,  # End at previous measure
+                'end_measure': current_measure,  # Include the current measure (last bar before :|)
                 'repeat': 2  # Repeat sections play twice
             })
-            # Next section starts at current measure
+            # Next section starts at next measure, and we move past this bar
+            current_measure += 1
             section_start_measure = current_measure
-            # If this is also a start repeat, we're already set up
+            just_ended_section = True
         elif token in ('|', '||'):
             # Regular barline - increment measure
             current_measure += 1

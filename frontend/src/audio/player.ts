@@ -1,6 +1,6 @@
 import * as Tone from 'tone';
 import { Section, Tune, PlaybackState, SectionMode } from '../types/tune';
-import { createSynth, getSynth, createMetronomeSynth, getMetronomeSynth, SynthType } from './synth';
+import { createSynth, getSynth, createMetronomeSynth, getMetronomeSynth, SynthType, MetronomeType } from './synth';
 
 type PlaybackCallback = (state: PlaybackState) => void;
 type ProgressCallback = (progress: number) => void;
@@ -18,7 +18,9 @@ class TunePlayer {
   private totalDurationSecs: number = 0;
   private synthType: SynthType = 'fiddle';
   private transpose: number = 0;
+  private octaveShift: number = 0;
   private metronomeEnabled: boolean = false;
+  private metronomeType: MetronomeType = 'click1';
   private beatsPerMeasure: number = 4;
 
   async initialize(): Promise<void> {
@@ -33,6 +35,14 @@ class TunePlayer {
 
   setTranspose(semitones: number): void {
     this.transpose = semitones;
+  }
+
+  setOctaveShift(octaves: number): void {
+    this.octaveShift = octaves;
+  }
+
+  getOctaveShift(): number {
+    return this.octaveShift;
   }
 
   setTune(tune: Tune): void {
@@ -51,6 +61,17 @@ class TunePlayer {
 
   getMetronome(): boolean {
     return this.metronomeEnabled;
+  }
+
+  setMetronomeType(type: MetronomeType): void {
+    this.metronomeType = type;
+    if (this.metronomeEnabled) {
+      createMetronomeSynth(type);
+    }
+  }
+
+  getMetronomeType(): MetronomeType {
+    return this.metronomeType;
   }
 
   setBpm(bpm: number): void {
@@ -175,16 +196,21 @@ class TunePlayer {
     if (this.metronomeEnabled) {
       const metronome = getMetronomeSynth();
       if (metronome) {
-        // Schedule a click on each beat
+        // Schedule a click on each beat - single tone
         const totalBeats = sectionOffsetBeats;
+        const clickPitch = 'C5'; // Single consistent pitch
         for (let beat = 0; beat < totalBeats; beat++) {
           const beatTimeSecs = this.beatsToSeconds(beat);
-          // Accent on beat 1 of each measure (higher pitch)
-          const isDownbeat = beat % this.beatsPerMeasure === 0;
-          const clickPitch = isDownbeat ? 'C5' : 'C4';
 
           const eventId = transport.schedule((time) => {
-            metronome.triggerAttackRelease(clickPitch, '32n', time);
+            // NoiseSynth doesn't take a pitch
+            if ('triggerAttackRelease' in metronome) {
+              if (metronome instanceof Tone.NoiseSynth) {
+                metronome.triggerAttackRelease('32n', time);
+              } else {
+                (metronome as Tone.Synth).triggerAttackRelease(clickPitch, '32n', time);
+              }
+            }
           }, beatTimeSecs);
 
           this.scheduledEvents.push(eventId);
@@ -209,10 +235,12 @@ class TunePlayer {
   }
 
   private convertPitch(pitch: string): string {
-    // Convert pitch like "F#4" to Tone.js format and apply transposition
+    // Convert pitch like "F#4" to Tone.js format and apply transposition + octave shift
     let normalized = pitch.replace('-', 'b');
 
-    if (this.transpose === 0) {
+    const totalTranspose = this.transpose + (this.octaveShift * 12);
+
+    if (totalTranspose === 0) {
       return normalized;
     }
 
@@ -231,8 +259,8 @@ class TunePlayer {
     if (accidental === '#') semitone += 1;
     if (accidental === 'b') semitone -= 1;
 
-    // Transpose
-    semitone += this.transpose;
+    // Apply transpose and octave shift
+    semitone += totalTranspose;
 
     // Convert back to note name
     const newOctave = Math.floor(semitone / 12);
@@ -274,7 +302,7 @@ class TunePlayer {
     await Tone.start();
     createSynth(this.synthType);
     if (this.metronomeEnabled) {
-      createMetronomeSynth();
+      createMetronomeSynth(this.metronomeType);
     }
 
     if (this.playbackState === 'paused') {

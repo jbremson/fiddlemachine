@@ -159,14 +159,35 @@ def _assign_notes_to_sections(
     sections = []
     beats_per_measure = _get_beats_per_measure(time_sig)
 
-    for info in section_info:
-        section_notes = []
-        section_start_time = (info['start_measure'] - 1) * beats_per_measure
+    # Calculate beat boundaries for each section
+    # We need to figure out where each section starts/ends in absolute beats
+    # by looking at the actual notes and their positions
 
-        for n in all_notes:
-            if info['start_measure'] <= n['measure'] <= info['end_measure']:
+    # Sort notes by start time
+    sorted_notes = sorted(all_notes, key=lambda n: n['start_time'])
+
+    # Calculate how many total beats are in the tune
+    total_beats = max(n['start_time'] + n['duration'] for n in all_notes) if all_notes else 0
+
+    # Calculate expected beats per section based on number of sections
+    # For tunes with pickups, we can't use measure numbers directly
+    # Instead, divide total beats evenly among sections
+    num_sections = len(section_info)
+    beats_per_section = total_beats / num_sections if num_sections > 0 else total_beats
+
+    for i, info in enumerate(section_info):
+        section_notes = []
+
+        # Calculate section boundaries in beats
+        section_start_beat = i * beats_per_section
+        section_end_beat = (i + 1) * beats_per_section
+
+        for n in sorted_notes:
+            note_start = n['start_time']
+            # Note belongs to this section if it starts within the section boundaries
+            if section_start_beat <= note_start < section_end_beat:
                 # Adjust start time relative to section start
-                relative_start = n['start_time'] - section_start_time
+                relative_start = note_start - section_start_beat
                 section_notes.append(Note(
                     pitch=n['pitch'],
                     duration=n['duration'],

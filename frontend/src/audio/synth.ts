@@ -1,11 +1,13 @@
 import * as Tone from 'tone';
 
 export type SynthType = 'fiddle' | 'piano' | 'clarinet' | 'whistle' | 'pluck';
+export type MetronomeType = 'click1' | 'click2' | 'click3';
 
 let synth: Tone.PolySynth | null = null;
 let reverb: Tone.Reverb | null = null;
 let currentSynthType: SynthType = 'fiddle';
-let metronomeSynth: Tone.MembraneSynth | null = null;
+let metronomeSynth: Tone.Synth | Tone.MembraneSynth | Tone.NoiseSynth | null = null;
+let currentMetronomeType: MetronomeType = 'click1';
 
 const SYNTH_CONFIGS: Record<SynthType, { name: string; config: () => Tone.PolySynth }> = {
   fiddle: {
@@ -120,22 +122,67 @@ export function disposeSynth(): void {
   }
 }
 
-export function createMetronomeSynth(): Tone.MembraneSynth {
+// Three metronome click options - all single tone
+const METRONOME_CONFIGS: Record<MetronomeType, { name: string; config: () => Tone.Synth | Tone.MembraneSynth | Tone.NoiseSynth }> = {
+  click1: {
+    name: 'Woodblock',
+    config: () => new Tone.Synth({
+      volume: -8,
+      oscillator: { type: 'sine' },
+      envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.05 },
+    }),
+  },
+  click2: {
+    name: 'Stick',
+    config: () => new Tone.NoiseSynth({
+      volume: -12,
+      noise: { type: 'white' },
+      envelope: { attack: 0.001, decay: 0.03, sustain: 0, release: 0.02 },
+    }),
+  },
+  click3: {
+    name: 'Tick',
+    config: () => new Tone.Synth({
+      volume: -6,
+      oscillator: { type: 'square' },
+      envelope: { attack: 0.001, decay: 0.02, sustain: 0, release: 0.01 },
+    }),
+  },
+};
+
+export function getMetronomeTypes(): { value: MetronomeType; name: string }[] {
+  return Object.entries(METRONOME_CONFIGS).map(([value, { name }]) => ({
+    value: value as MetronomeType,
+    name,
+  }));
+}
+
+export function getCurrentMetronomeType(): MetronomeType {
+  return currentMetronomeType;
+}
+
+export function createMetronomeSynth(type: MetronomeType = 'click1'): Tone.Synth | Tone.MembraneSynth | Tone.NoiseSynth {
+  // Dispose existing if changing type
+  if (metronomeSynth && type !== currentMetronomeType) {
+    metronomeSynth.disconnect();
+    metronomeSynth.dispose();
+    metronomeSynth = null;
+  }
+
   if (metronomeSynth) {
     return metronomeSynth;
   }
 
-  metronomeSynth = new Tone.MembraneSynth({
-    volume: -6,
-    pitchDecay: 0.01,
-    octaves: 4,
-    oscillator: { type: 'sine' },
-    envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 },
-  }).toDestination();
+  currentMetronomeType = type;
+  metronomeSynth = METRONOME_CONFIGS[type].config().toDestination();
 
   return metronomeSynth;
 }
 
-export function getMetronomeSynth(): Tone.MembraneSynth | null {
+export function setMetronomeType(type: MetronomeType): void {
+  createMetronomeSynth(type);
+}
+
+export function getMetronomeSynth(): Tone.Synth | Tone.MembraneSynth | Tone.NoiseSynth | null {
   return metronomeSynth;
 }

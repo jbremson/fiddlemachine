@@ -346,9 +346,37 @@ body {
 }
 
 .tempo-slider label {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-weight: 500;
   margin-bottom: 0.5rem;
+}
+
+.tempo-input {
+  width: 60px;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--primary-color);
+  border-radius: 4px;
+  font-size: 1rem;
+  text-align: center;
+  color: var(--primary-color);
+}
+
+.tempo-input:focus {
+  outline: 2px solid var(--primary-light);
+  outline-offset: 1px;
+}
+
+/* Hide number input spinners */
+.tempo-input::-webkit-outer-spin-button,
+.tempo-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.tempo-input[type=number] {
+  -moz-appearance: textfield;
 }
 
 .tempo-slider input[type="range"] {
@@ -520,6 +548,71 @@ body {
   color: var(--text-muted);
 }
 
+/* Octave Selector */
+.octave-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.octave-selector label {
+  font-weight: 500;
+}
+
+.octave-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.octave-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--primary-color);
+  background: white;
+  color: var(--primary-color);
+  font-size: 1.25rem;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.octave-btn:hover:not(:disabled) {
+  background: rgba(139, 69, 19, 0.1);
+}
+
+.octave-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.octave-display {
+  min-width: 60px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--primary-color);
+}
+
+.octave-reset {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--text-muted);
+  background: white;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  border-radius: 4px;
+  margin-left: 0.5rem;
+}
+
+.octave-reset:hover {
+  background: #f0f0f0;
+}
+
 /* Metronome Button */
 .metronome-button {
   display: flex;
@@ -551,6 +644,71 @@ body {
 
 .metronome-icon {
   font-size: 1.1rem;
+}
+
+/* Metronome Selector */
+.metronome-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.metronome-type-select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--primary-color);
+  border-radius: 4px;
+  background: white;
+  color: var(--primary-color);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.metronome-type-select:hover {
+  background: rgba(139, 69, 19, 0.05);
+}
+
+.metronome-type-select:focus {
+  outline: 2px solid var(--primary-light);
+  outline-offset: 1px;
+}
+
+/* Highlight Offset Slider */
+.highlight-offset-slider {
+  min-width: 180px;
+  max-width: 250px;
+}
+
+.highlight-offset-slider label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.highlight-offset-slider input[type="range"] {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: #DDD;
+  appearance: none;
+  cursor: pointer;
+}
+
+.highlight-offset-slider input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  cursor: pointer;
+}
+
+.offset-marks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
 }
 
 /* Highlight Version Switcher */
