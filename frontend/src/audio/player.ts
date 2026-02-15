@@ -258,7 +258,7 @@ class TunePlayer {
         const progress = Math.min(1, currentTime / this.totalDurationSecs);
         this.onProgress(progress);
       }
-    }, 50); // Update ~20 times per second for smooth cursor
+    }, 50); // Update ~20 times per second for smooth highlight
   }
 
   private stopProgressUpdates(): void {
