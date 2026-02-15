@@ -1,0 +1,320 @@
+import * as Tone from 'tone';
+import { Section, Tune, PlaybackState, SectionMode } from '../types/tune';
+import { createSynth, getSynth, createMetronomeSynth, getMetronomeSynth, SynthType } from './synth';
+
+type PlaybackCallback = (state: PlaybackState) => void;
+type ProgressCallback = (progress: number) => void;
+
+class TunePlayer {
+  private tune: Tune | null = null;
+  private sectionMode: SectionMode = 'full';
+  private bpm: number = 120;
+  private isLooping: boolean = true;
+  private scheduledEvents: number[] = [];
+  private playbackState: PlaybackState = 'stopped';
+  private onStateChange: PlaybackCallback | null = null;
+  private onProgress: ProgressCallback | null = null;
+  private progressInterval: number | null = null;
+  private totalDurationSecs: number = 0;
+  private synthType: SynthType = 'fiddle';
+  private transpose: number = 0;
+  private metronomeEnabled: boolean = false;
+  private beatsPerMeasure: number = 4;
+
+  async initialize(): Promise<void> {
+    await Tone.start();
+    createSynth(this.synthType);
+  }
+
+  setSynthType(type: SynthType): void {
+    this.synthType = type;
+    createSynth(type);
+  }
+
+  setTranspose(semitones: number): void {
+    this.transpose = semitones;
+  }
+
+  setTune(tune: Tune): void {
+    this.stop();
+    this.tune = tune;
+    this.bpm = tune.default_tempo;
+    Tone.getTransport().bpm.value = this.bpm;
+    // Parse time signature for metronome
+    const timeParts = tune.time_signature.split('/');
+    this.beatsPerMeasure = parseInt(timeParts[0]) || 4;
+  }
+
+  setMetronome(enabled: boolean): void {
+    this.metronomeEnabled = enabled;
+  }
+
+  getMetronome(): boolean {
+    return this.metronomeEnabled;
+  }
+
+  setBpm(bpm: number): void {
+    this.bpm = Math.max(30, Math.min(160, bpm));
+    Tone.getTransport().bpm.value = this.bpm;
+  }
+
+  getBpm(): number {
+    return this.bpm;
+  }
+
+  setSectionMode(mode: SectionMode): void {
+    const wasPlaying = this.playbackState === 'playing';
+    if (wasPlaying) {
+      this.stop();
+    }
+    this.sectionMode = mode;
+    if (wasPlaying) {
+      this.play();
+    }
+  }
+
+  setLooping(loop: boolean): void {
+    this.isLooping = loop;
+  }
+
+  setOnStateChange(callback: PlaybackCallback): void {
+    this.onStateChange = callback;
+  }
+
+  setOnProgress(callback: ProgressCallback): void {
+    this.onProgress = callback;
+  }
+
+  private getSectionsToPlay(): Section[] {
+    if (!this.tune) return [];
+
+    switch (this.sectionMode) {
+      case 'A':
+        return this.tune.sections.filter(s => s.name === 'A');
+      case 'B':
+        return this.tune.sections.filter(s => s.name === 'B');
+      case 'full':
+      default:
+        return this.tune.sections;
+    }
+  }
+
+  private beatsToSeconds(beats: number): number {
+    // Convert beats to seconds based on current BPM
+    const bpm = Tone.getTransport().bpm.value;
+    return (beats / bpm) * 60;
+  }
+
+  private scheduleNotes(): void {
+    const synth = getSynth();
+    if (!synth || !this.tune) return;
+
+    this.clearScheduledEvents();
+
+    const sections = this.getSectionsToPlay();
+    if (sections.length === 0) return;
+
+    let sectionOffsetBeats = 0;
+    const transport = Tone.getTransport();
+
+    sections.forEach((section) => {
+      // Play each section twice (AABB form) to observe repeat markers
+      const repeatCount = 2; // Each |: :| section plays twice
+
+      // Calculate section duration and detect pickup notes
+      const sectionBeats = section.notes.length > 0
+        ? Math.max(...section.notes.map(n => n.start_time + n.duration))
+        : 4;
+
+      // Detect pickup: if total duration is not a multiple of 4 beats (one bar in 4/4)
+      // the section likely has a pickup. Calculate pickup duration.
+      const barsFloat = sectionBeats / this.beatsPerMeasure;
+      const fullBars = Math.floor(barsFloat);
+      const pickupBeats = sectionBeats - (fullBars * this.beatsPerMeasure);
+      const hasPickup = pickupBeats > 0 && pickupBeats < this.beatsPerMeasure;
+
+      // Play the section repeatCount times
+      for (let rep = 0; rep < repeatCount; rep++) {
+        // On repeat (rep > 0), skip pickup notes - they're replaced by the ending
+        const skipBeats = (rep > 0 && hasPickup) ? pickupBeats : 0;
+
+        section.notes.forEach((note) => {
+          // Skip pickup notes on repeat
+          if (note.start_time < skipBeats) {
+            return;
+          }
+
+          // Adjust timing: subtract pickup on repeats so section starts at offset
+          const adjustedStartTime = note.start_time - skipBeats;
+          const noteTimeBeats = sectionOffsetBeats + adjustedStartTime;
+          const durationBeats = note.duration;
+
+          // Convert to seconds
+          const noteTimeSecs = this.beatsToSeconds(noteTimeBeats);
+          const durationSecs = Math.max(0.1, this.beatsToSeconds(durationBeats));
+
+          const eventId = transport.schedule((time) => {
+            // Convert ABC pitch notation to Tone.js format
+            const pitch = this.convertPitch(note.pitch);
+            synth.triggerAttackRelease(pitch, durationSecs, time);
+          }, noteTimeSecs);
+
+          this.scheduledEvents.push(eventId);
+        });
+
+        // Add section duration to offset (minus pickup on repeat since we skipped it)
+        const repeatDuration = (rep === 0) ? sectionBeats : (sectionBeats - skipBeats);
+        sectionOffsetBeats += repeatDuration;
+      }
+    });
+
+    // Store total duration for progress calculation
+    this.totalDurationSecs = this.beatsToSeconds(sectionOffsetBeats);
+
+    // Schedule metronome clicks if enabled
+    if (this.metronomeEnabled) {
+      const metronome = getMetronomeSynth();
+      if (metronome) {
+        // Schedule a click on each beat
+        const totalBeats = sectionOffsetBeats;
+        for (let beat = 0; beat < totalBeats; beat++) {
+          const beatTimeSecs = this.beatsToSeconds(beat);
+          // Accent on beat 1 of each measure (higher pitch)
+          const isDownbeat = beat % this.beatsPerMeasure === 0;
+          const clickPitch = isDownbeat ? 'C5' : 'C4';
+
+          const eventId = transport.schedule((time) => {
+            metronome.triggerAttackRelease(clickPitch, '32n', time);
+          }, beatTimeSecs);
+
+          this.scheduledEvents.push(eventId);
+        }
+      }
+    }
+
+    // Schedule end of tune
+    const endEventId = transport.schedule(() => {
+      if (this.isLooping) {
+        // Reset and continue
+        transport.stop();
+        transport.position = 0;
+        this.scheduleNotes();
+        transport.start();
+      } else {
+        this.stop();
+      }
+    }, this.totalDurationSecs);
+
+    this.scheduledEvents.push(endEventId);
+  }
+
+  private convertPitch(pitch: string): string {
+    // Convert pitch like "F#4" to Tone.js format and apply transposition
+    let normalized = pitch.replace('-', 'b');
+
+    if (this.transpose === 0) {
+      return normalized;
+    }
+
+    // Parse the pitch
+    const match = normalized.match(/^([A-G])([#b]?)(\d+)$/);
+    if (!match) return normalized;
+
+    const [, note, accidental, octaveStr] = match;
+    let octave = parseInt(octaveStr);
+
+    // Convert to semitone number (C4 = 60 in MIDI)
+    const noteValues: Record<string, number> = {
+      'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11
+    };
+    let semitone = noteValues[note] + (octave * 12);
+    if (accidental === '#') semitone += 1;
+    if (accidental === 'b') semitone -= 1;
+
+    // Transpose
+    semitone += this.transpose;
+
+    // Convert back to note name
+    const newOctave = Math.floor(semitone / 12);
+    const noteIndex = ((semitone % 12) + 12) % 12;
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+    return noteNames[noteIndex] + newOctave;
+  }
+
+  private clearScheduledEvents(): void {
+    const transport = Tone.getTransport();
+    this.scheduledEvents.forEach(id => {
+      transport.clear(id);
+    });
+    this.scheduledEvents = [];
+  }
+
+  private startProgressUpdates(): void {
+    this.stopProgressUpdates();
+    this.progressInterval = window.setInterval(() => {
+      if (this.totalDurationSecs > 0 && this.onProgress) {
+        const currentTime = Tone.getTransport().seconds;
+        const progress = Math.min(1, currentTime / this.totalDurationSecs);
+        this.onProgress(progress);
+      }
+    }, 50); // Update ~20 times per second for smooth cursor
+  }
+
+  private stopProgressUpdates(): void {
+    if (this.progressInterval !== null) {
+      window.clearInterval(this.progressInterval);
+      this.progressInterval = null;
+    }
+  }
+
+  async play(): Promise<void> {
+    if (!this.tune) return;
+
+    await Tone.start();
+    createSynth(this.synthType);
+    if (this.metronomeEnabled) {
+      createMetronomeSynth();
+    }
+
+    if (this.playbackState === 'paused') {
+      Tone.getTransport().start();
+    } else {
+      this.scheduleNotes();
+      Tone.getTransport().start();
+    }
+
+    this.startProgressUpdates();
+    this.playbackState = 'playing';
+    this.onStateChange?.('playing');
+  }
+
+  pause(): void {
+    if (this.playbackState === 'playing') {
+      Tone.getTransport().pause();
+      this.stopProgressUpdates();
+      this.playbackState = 'paused';
+      this.onStateChange?.('paused');
+    }
+  }
+
+  stop(): void {
+    Tone.getTransport().stop();
+    Tone.getTransport().position = 0;
+    this.clearScheduledEvents();
+    this.stopProgressUpdates();
+    this.playbackState = 'stopped';
+    this.onProgress?.(0);
+    this.onStateChange?.('stopped');
+  }
+
+  getPlaybackState(): PlaybackState {
+    return this.playbackState;
+  }
+
+  getTotalDuration(): number {
+    return this.totalDurationSecs;
+  }
+}
+
+export const tunePlayer = new TunePlayer();
