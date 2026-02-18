@@ -385,14 +385,8 @@ export function NotationView({ tune, transpose, progress, isPlaying, highlightOf
     return (<div className="notation-view empty"><p>Select a tune to view notation</p></div>);
   }
 
-  const displayKey = transpose !== 0 ? `(transposed ${transpose > 0 ? '+' : ''}${transpose})` : '';
-
   return (
     <div className="notation-view">
-      <h2>{tune.title}</h2>
-      <p className="tune-info">
-        Key: {tune.key} {displayKey} | Time: {tune.time_signature} | Tempo: {tune.default_tempo} BPM
-      </p>
       <div className="notation-controls">
         <div className="zoom-control">
           <label>Zoom: </label>

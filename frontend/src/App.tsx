@@ -2,15 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { TuneBrowser } from './components/TuneBrowser';
 import { NotationView } from './components/NotationView';
 import { TransportControls } from './components/TransportControls';
-import { TempoSlider } from './components/TempoSlider';
-import { ToneSelector } from './components/ToneSelector';
+import { InstrumentToggle } from './components/InstrumentToggle';
 import { KeySelector } from './components/KeySelector';
-import { OctaveSelector } from './components/OctaveSelector';
 import { MetronomeSelector } from './components/MetronomeSelector';
-import { HighlightOffsetSlider } from './components/HighlightOffsetSlider';
 import { RepeatSelector } from './components/RepeatSelector';
+import { SettingsPanel } from './components/SettingsPanel';
 import { tunePlayer } from './audio/player';
-import { SynthType, MetronomeType } from './audio/synth';
+import { SynthType } from './audio/synth';
 import { Tune, TuneSummary, PlaybackState } from './types/tune';
 import './styles/main.css';
 
@@ -26,10 +24,11 @@ export function App() {
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [synthType, setSynthType] = useState<SynthType>('fiddle');
   const [transpose, setTranspose] = useState(0);
-  const [octaveShift, setOctaveShift] = useState(0);
+  const [instrument, setInstrument] = useState<'fiddle' | 'mandolin'>('fiddle');
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
-  const [metronomeType, setMetronomeType] = useState<MetronomeType>('click1');
-  const [highlightOffset, setHighlightOffset] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const highlightOffset = 0;
 
   // Fetch tune list on mount
   useEffect(() => {
@@ -39,9 +38,13 @@ export function App() {
         if (response.ok) {
           const data = await response.json();
           setTunes(data);
+          setError(null);
+        } else {
+          setError('Failed to load tune list');
         }
-      } catch (error) {
-        console.error('Failed to fetch tunes:', error);
+      } catch (err) {
+        console.error('Failed to fetch tunes:', err);
+        setError('Failed to connect to server');
       } finally {
         setLoadingTunes(false);
       }
@@ -66,10 +69,13 @@ export function App() {
         setBpm(tune.default_tempo);
         setProgress(0);
         setTranspose(0);
-        setOctaveShift(0);
+        setError(null);
+      } else {
+        setError('Failed to load tune');
       }
-    } catch (error) {
-      console.error('Failed to fetch tune:', error);
+    } catch (err) {
+      console.error('Failed to fetch tune:', err);
+      setError('Failed to load tune');
     }
   }, []);
 
@@ -115,6 +121,12 @@ export function App() {
     tunePlayer.setSynthType(tone);
   }, []);
 
+  const handleInstrumentChange = useCallback((inst: 'fiddle' | 'mandolin') => {
+    setInstrument(inst);
+    // Mandolin is +1 octave from fiddle
+    tunePlayer.setOctaveShift(inst === 'mandolin' ? 1 : 0);
+  }, []);
+
   const handleTransposeChange = useCallback((semitones: number) => {
     // Limit to +/- 12 semitones (one octave)
     const limited = Math.max(-12, Math.min(12, semitones));
@@ -122,21 +134,9 @@ export function App() {
     tunePlayer.setTranspose(limited);
   }, []);
 
-  const handleOctaveChange = useCallback((octaves: number) => {
-    // Limit to +/- 2 octaves
-    const limited = Math.max(-2, Math.min(2, octaves));
-    setOctaveShift(limited);
-    tunePlayer.setOctaveShift(limited);
-  }, []);
-
   const handleMetronomeToggle = useCallback((enabled: boolean) => {
     setMetronomeEnabled(enabled);
     tunePlayer.setMetronome(enabled);
-  }, []);
-
-  const handleMetronomeTypeChange = useCallback((type: MetronomeType) => {
-    setMetronomeType(type);
-    tunePlayer.setMetronomeType(type);
   }, []);
 
   return (
@@ -146,6 +146,13 @@ export function App() {
         <p>Learn fiddle tunes by ear</p>
       </header>
 
+      {error && (
+        <div className="error-banner" role="alert">
+          {error}
+          <button onClick={() => setError(null)} aria-label="Dismiss error">×</button>
+        </div>
+      )}
+
       <main className="app-main">
         <aside className="sidebar">
           <TuneBrowser
@@ -154,59 +161,78 @@ export function App() {
             onSelectTune={handleSelectTune}
             loading={loadingTunes}
           />
-
-          <div className="controls">
-            <TransportControls
-              playbackState={playbackState}
-              onPlay={handlePlay}
-              onPause={handlePause}
-              onStop={handleStop}
-              disabled={!selectedTune}
-            />
-
-            <TempoSlider
-              bpm={bpm}
-              onBpmChange={handleBpmChange}
-            />
-
-            <RepeatSelector
-              repeatCount={repeatCount}
-              loopForever={loopForever}
-              onRepeatCountChange={handleRepeatCountChange}
-              onLoopForeverChange={handleLoopForeverChange}
-            />
-
-            <ToneSelector
-              selectedTone={synthType}
-              onToneChange={handleToneChange}
-            />
-
-            <KeySelector
-              currentKey={selectedTune?.key ?? 'C'}
-              transpose={transpose}
-              onTransposeChange={handleTransposeChange}
-            />
-
-            <OctaveSelector
-              octaveShift={octaveShift}
-              onOctaveChange={handleOctaveChange}
-            />
-
-            <MetronomeSelector
-              enabled={metronomeEnabled}
-              onToggle={handleMetronomeToggle}
-              metronomeType={metronomeType}
-              onTypeChange={handleMetronomeTypeChange}
-            />
-
-            <HighlightOffsetSlider
-              offset={highlightOffset}
-              onOffsetChange={setHighlightOffset}
-            />
-          </div>
         </aside>
 
         <section className="content">
+          <div className="controls-bar">
+            <div className="controls-row">
+              <KeySelector
+                currentKey={selectedTune?.key ?? 'C'}
+                transpose={transpose}
+                onTransposeChange={handleTransposeChange}
+              />
+
+              <InstrumentToggle
+                instrument={instrument}
+                onInstrumentChange={handleInstrumentChange}
+              />
+
+              <button
+                className="settings-btn"
+                onClick={() => setShowSettings(!showSettings)}
+                title="Settings"
+              >
+                ⚙
+              </button>
+            </div>
+
+            <div className="controls-row">
+              <TransportControls
+                playbackState={playbackState}
+                onPlay={handlePlay}
+                onPause={handlePause}
+                onStop={handleStop}
+                disabled={!selectedTune}
+              />
+
+              <div className="tempo-control">
+                <button
+                  className="tempo-btn"
+                  onClick={() => handleBpmChange(bpm - 5)}
+                >
+                  −
+                </button>
+                <span className="tempo-display">{bpm} <small>BPM</small></span>
+                <button
+                  className="tempo-btn"
+                  onClick={() => handleBpmChange(bpm + 5)}
+                >
+                  +
+                </button>
+              </div>
+
+              <MetronomeSelector
+                enabled={metronomeEnabled}
+                onToggle={handleMetronomeToggle}
+              />
+
+              <RepeatSelector
+                repeatCount={repeatCount}
+                loopForever={loopForever}
+                onRepeatCountChange={handleRepeatCountChange}
+                onLoopForeverChange={handleLoopForeverChange}
+              />
+            </div>
+
+            {showSettings && (
+              <SettingsPanel
+                synthType={synthType}
+                onSynthTypeChange={handleToneChange}
+                onClose={() => setShowSettings(false)}
+              />
+            )}
+          </div>
+
           <NotationView
             tune={selectedTune}
             transpose={transpose}

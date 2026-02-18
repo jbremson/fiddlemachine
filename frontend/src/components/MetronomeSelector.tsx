@@ -1,39 +1,25 @@
-import { MetronomeType, getMetronomeTypes } from '../audio/synth';
-
 interface MetronomeSelectorProps {
   enabled: boolean;
   onToggle: (enabled: boolean) => void;
-  metronomeType: MetronomeType;
-  onTypeChange: (type: MetronomeType) => void;
 }
 
-export function MetronomeSelector({ enabled, onToggle, metronomeType, onTypeChange }: MetronomeSelectorProps) {
-  const metronomeTypes = getMetronomeTypes();
-
+export function MetronomeSelector({ enabled, onToggle }: MetronomeSelectorProps) {
   return (
-    <div className="metronome-selector">
+    <div className="metronome-selector" role="group" aria-label="Metronome">
       <button
-        className={`metronome-toggle ${enabled ? 'active' : ''}`}
-        onClick={() => onToggle(!enabled)}
-        title={enabled ? 'Turn metronome off' : 'Turn metronome on'}
+        className={enabled ? '' : 'active'}
+        onClick={() => onToggle(false)}
+        aria-pressed={!enabled}
       >
-        <span className="metronome-icon">&#9834;</span>
-        <span>Metronome</span>
+        Off
       </button>
-
-      {enabled && (
-        <select
-          value={metronomeType}
-          onChange={(e) => onTypeChange(e.target.value as MetronomeType)}
-          className="metronome-type-select"
-        >
-          {metronomeTypes.map(({ value, name }) => (
-            <option key={value} value={value}>
-              {name}
-            </option>
-          ))}
-        </select>
-      )}
+      <button
+        className={enabled ? 'active' : ''}
+        onClick={() => onToggle(true)}
+        aria-pressed={enabled}
+      >
+        Click
+      </button>
     </div>
   );
 }

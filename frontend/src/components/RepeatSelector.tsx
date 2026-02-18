@@ -11,29 +11,32 @@ export function RepeatSelector({
   onRepeatCountChange,
   onLoopForeverChange,
 }: RepeatSelectorProps) {
+  const counts = [1, 2, 3, 4];
+
   return (
-    <div className="repeat-selector">
-      <label>Repeat:</label>
-      <div className="repeat-controls">
+    <div className="repeat-selector" role="group" aria-label="Repeat count">
+      <label id="repeat-label">Repeat:</label>
+      <div className="repeat-buttons" role="radiogroup" aria-labelledby="repeat-label">
+        {counts.map((num) => (
+          <button
+            key={num}
+            role="radio"
+            aria-checked={!loopForever && repeatCount === num}
+            className={`repeat-num ${!loopForever && repeatCount === num ? 'active' : ''}`}
+            onClick={() => {
+              onLoopForeverChange(false);
+              onRepeatCountChange(num);
+            }}
+          >
+            {num}
+          </button>
+        ))}
         <button
-          className="repeat-btn"
-          onClick={() => onRepeatCountChange(Math.max(1, repeatCount - 1))}
-          disabled={loopForever || repeatCount <= 1}
-        >
-          -
-        </button>
-        <span className="repeat-display">{loopForever ? '∞' : repeatCount}</span>
-        <button
-          className="repeat-btn"
-          onClick={() => onRepeatCountChange(repeatCount + 1)}
-          disabled={loopForever}
-        >
-          +
-        </button>
-        <button
+          role="radio"
+          aria-checked={loopForever}
+          aria-label="Loop forever"
           className={`loop-btn ${loopForever ? 'active' : ''}`}
           onClick={() => onLoopForeverChange(!loopForever)}
-          title="Loop forever"
         >
           ∞
         </button>

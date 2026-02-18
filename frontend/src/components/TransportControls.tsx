@@ -17,9 +17,17 @@ export function TransportControls({
 }: TransportControlsProps) {
   return (
     <div className="transport-controls">
+      <button
+        className="transport-btn"
+        onClick={onStop}
+        disabled={disabled || playbackState === 'stopped'}
+        title="Restart"
+      >
+        ↺
+      </button>
       {playbackState === 'playing' ? (
         <button
-          className="transport-btn pause"
+          className="transport-btn play"
           onClick={onPause}
           disabled={disabled}
           title="Pause"
@@ -37,7 +45,7 @@ export function TransportControls({
         </button>
       )}
       <button
-        className="transport-btn stop"
+        className="transport-btn"
         onClick={onStop}
         disabled={disabled || playbackState === 'stopped'}
         title="Stop"
