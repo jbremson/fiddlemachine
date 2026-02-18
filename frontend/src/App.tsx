@@ -181,6 +181,8 @@ export function App() {
                 className="settings-btn"
                 onClick={() => setShowSettings(!showSettings)}
                 title="Settings"
+                aria-label="Settings"
+                aria-expanded={showSettings}
               >
                 ⚙
               </button>
@@ -195,17 +197,19 @@ export function App() {
                 disabled={!selectedTune}
               />
 
-              <div className="tempo-control">
+              <div className="tempo-control" role="group" aria-label="Tempo control">
                 <button
                   className="tempo-btn"
                   onClick={() => handleBpmChange(bpm - 5)}
+                  aria-label="Decrease tempo"
                 >
                   −
                 </button>
-                <span className="tempo-display">{bpm} <small>BPM</small></span>
+                <span className="tempo-display" aria-live="polite">{bpm} <small>BPM</small></span>
                 <button
                   className="tempo-btn"
                   onClick={() => handleBpmChange(bpm + 5)}
+                  aria-label="Increase tempo"
                 >
                   +
                 </button>

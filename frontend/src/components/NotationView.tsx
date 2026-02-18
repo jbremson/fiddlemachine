@@ -404,17 +404,22 @@ export function NotationView({ tune, transpose, progress, isPlaying, highlightOf
             +
           </button>
         </div>
-        <div className="highlight-controls">
-          <label>Highlight: </label>
-          <select
-            value={highlightVersion}
-            onChange={(e) => setHighlightVersion(e.target.value as HighlightVersion)}
+        <div className="highlight-toggle" role="group" aria-label="Highlight toggle">
+          <span className="experimental-label">Highlight (experimental):</span>
+          <button
+            className={highlightVersion === 'off' ? 'active' : ''}
+            onClick={() => setHighlightVersion('off')}
+            aria-pressed={highlightVersion === 'off'}
           >
-            <option value="off">Off</option>
-            <option value="v1">V1 (Simple)</option>
-            <option value="v2">V2 (Beat-based)</option>
-            <option value="v3">V3 (Full timing)</option>
-          </select>
+            Off
+          </button>
+          <button
+            className={highlightVersion === 'v3' ? 'active' : ''}
+            onClick={() => setHighlightVersion('v3')}
+            aria-pressed={highlightVersion === 'v3'}
+          >
+            On
+          </button>
         </div>
       </div>
       <div className="notation-wrapper">

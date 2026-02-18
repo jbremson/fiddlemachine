@@ -10,15 +10,16 @@ export function SettingsPanel({ synthType, onSynthTypeChange, onClose }: Setting
   const synthTypes = getSynthTypes();
 
   return (
-    <div className="settings-panel">
+    <div className="settings-panel" role="dialog" aria-label="Settings">
       <div className="settings-header">
         <span>Settings</span>
-        <button className="settings-close" onClick={onClose}>×</button>
+        <button className="settings-close" onClick={onClose} aria-label="Close settings">×</button>
       </div>
       <div className="settings-content">
         <div className="settings-row">
-          <label>Sound:</label>
+          <label htmlFor="sound-select">Sound:</label>
           <select
+            id="sound-select"
             value={synthType}
             onChange={(e) => onSynthTypeChange(e.target.value as SynthType)}
           >

@@ -22,6 +22,7 @@ export function TransportControls({
         onClick={onStop}
         disabled={disabled || playbackState === 'stopped'}
         title="Restart"
+        aria-label="Restart"
       >
         ↺
       </button>
@@ -31,6 +32,7 @@ export function TransportControls({
           onClick={onPause}
           disabled={disabled}
           title="Pause"
+          aria-label="Pause"
         >
           ⏸
         </button>
@@ -40,6 +42,7 @@ export function TransportControls({
           onClick={onPlay}
           disabled={disabled}
           title="Play"
+          aria-label="Play"
         >
           ▶
         </button>
@@ -49,6 +52,7 @@ export function TransportControls({
         onClick={onStop}
         disabled={disabled || playbackState === 'stopped'}
         title="Stop"
+        aria-label="Stop"
       >
         ⏹
       </button>

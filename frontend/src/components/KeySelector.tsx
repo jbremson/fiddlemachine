@@ -16,6 +16,7 @@ export function KeySelector({ currentKey, transpose, onTransposeChange }: KeySel
       <select
         value={transpose}
         onChange={(e) => onTransposeChange(parseInt(e.target.value))}
+        aria-label="Key transposition"
       >
         {[-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6].map((t) => {
           const idx = baseIndex >= 0 ? (baseIndex + t + 12) % 12 : -1;

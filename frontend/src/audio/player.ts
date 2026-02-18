@@ -58,7 +58,31 @@ class TunePlayer {
   }
 
   setMetronome(enabled: boolean): void {
+    const wasEnabled = this.metronomeEnabled;
     this.metronomeEnabled = enabled;
+
+    // Create metronome synth if enabling
+    if (enabled && !wasEnabled) {
+      createMetronomeSynth(this.metronomeType);
+    }
+
+    // If playback is active and metronome state changed, reschedule
+    if (this.playbackState === 'playing' && wasEnabled !== enabled) {
+      // Save current progress
+      const currentProgress = Tone.getTransport().seconds / this.totalDurationSecs;
+
+      // Stop and clear
+      Tone.getTransport().stop();
+      this.clearScheduledEvents();
+
+      // Reschedule everything
+      this.scheduleNotes();
+
+      // Resume from same position
+      const newPosition = currentProgress * this.totalDurationSecs;
+      Tone.getTransport().seconds = newPosition;
+      Tone.getTransport().start();
+    }
   }
 
   getMetronome(): boolean {
