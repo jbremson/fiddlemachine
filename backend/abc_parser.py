@@ -97,7 +97,6 @@ def _extract_tempo(score: stream.Score, abc: str) -> int:
 def _extract_notes(score: stream.Score, time_sig: str) -> list[dict]:
     """Extract all notes with timing information."""
     notes = []
-    beats_per_measure = _get_beats_per_measure(time_sig)
 
     for element in score.recurse().notes:
         if isinstance(element, note.Note):
@@ -112,8 +111,9 @@ def _extract_notes(score: stream.Score, time_sig: str) -> list[dict]:
             # Get absolute start time in quarter notes from beginning
             start_time = element.getOffsetInHierarchy(score)
 
-            # Calculate measure number
-            measure_num = int(start_time / beats_per_measure) + 1
+            # Use music21's measure number (handles pickups correctly)
+            # Keep measure 0 for pickups, don't convert to 1
+            measure_num = element.measureNumber if element.measureNumber is not None else 0
 
             notes.append({
                 'pitch': pitch_str,
@@ -156,38 +156,111 @@ def _assign_notes_to_sections(
             ) for n in all_notes]
         )]
 
-    sections = []
-    beats_per_measure = _get_beats_per_measure(time_sig)
-
-    # Calculate beat boundaries for each section
-    # We need to figure out where each section starts/ends in absolute beats
-    # by looking at the actual notes and their positions
-
     # Sort notes by start time
     sorted_notes = sorted(all_notes, key=lambda n: n['start_time'])
 
-    # Calculate how many total beats are in the tune
-    total_beats = max(n['start_time'] + n['duration'] for n in all_notes) if all_notes else 0
+    if not sorted_notes:
+        return [Section(name=info['name'], start_measure=info['start_measure'],
+                       end_measure=info['end_measure'], notes=[], repeat=info.get('repeat', 1))
+                for info in section_info]
 
-    # Calculate expected beats per section based on number of sections
-    # For tunes with pickups, we can't use measure numbers directly
-    # Instead, divide total beats evenly among sections
+    # music21 parses with repeats expanded, giving us more measures than section_info describes.
+    # For a tune with sections A (measures 1-17) and B (measures 18-34), music21 gives
+    # measures 0-37 (0=pickup, then repeats expanded: 1-17, 1-17, 18-34, 18-34).
+    #
+    # Strategy: Use the measure numbers from music21 to assign notes to sections.
+    # - Measure 0 (pickup) goes to the first section
+    # - Notes are assigned based on which section's measure range they fall into
+    # - For expanded repeats, we take the first occurrence of each section
+
+    # Calculate total measures per section
+    total_section_measures = sum(info['end_measure'] - info['start_measure'] + 1 for info in section_info)
+
+    # Find the measure offset where music21 starts repeating
+    # After playing through once (measures 0 to end_of_last_section), it repeats
+    last_section_end = section_info[-1]['end_measure']
+
+    # Find beat boundaries for each section by looking at measure numbers
+    # Section A ends where its last measure ends, Section B starts at the first note
+    # of the next section's start measure
+    #
+    # Strategy: For each section boundary, find the beat position where the sections divide
+
+    # Build a map of measure -> first note beat position
+    measure_start_beats = {}
+    for n in sorted_notes:
+        m = n['measure']
+        if m not in measure_start_beats or n['start_time'] < measure_start_beats[m]:
+            measure_start_beats[m] = n['start_time']
+
+    # Calculate split points between sections
+    # For section i, its end is just before section i+1's start
+    total_beats = max(n['start_time'] + n['duration'] for n in sorted_notes)
     num_sections = len(section_info)
-    beats_per_section = total_beats / num_sections if num_sections > 0 else total_beats
 
+    # Find beat boundaries for each section
+    section_beat_ranges = []
     for i, info in enumerate(section_info):
-        section_notes = []
+        if i == 0:
+            # First section starts at beat 0
+            start_beat = 0
+        else:
+            # Section starts where previous section ended
+            start_beat = section_beat_ranges[-1][1]
 
-        # Calculate section boundaries in beats
-        section_start_beat = i * beats_per_section
-        section_end_beat = (i + 1) * beats_per_section
+        if i == num_sections - 1:
+            # Last section ends at total_beats
+            end_beat = total_beats
+        else:
+            # Find where this section ends based on next section's start measure
+            next_start_measure = section_info[i + 1]['start_measure']
 
+            # Detect if tune has a pickup bar by checking measure 0 duration
+            # If measure 0 has less than a full bar's worth of beats before measure 1,
+            # it's a pickup and music21's measure numbers match section detection
+            has_pickup = False
+            if 0 in measure_start_beats and 1 in measure_start_beats:
+                measure_0_duration = measure_start_beats[1] - measure_start_beats[0]
+                beats_per_measure = _get_beats_per_measure(time_sig)
+                has_pickup = measure_0_duration < beats_per_measure
+
+            # Look for the first note in the next section's start measure
+            # - If there's a pickup, music21's measure numbers match section detection
+            # - If no pickup, measure 0 = bar 1, so we need measure - 1
+            end_beat = None
+            if has_pickup:
+                check_order = [next_start_measure, next_start_measure - 1, next_start_measure + 1]
+            else:
+                check_order = [next_start_measure - 1, next_start_measure, next_start_measure + 1]
+
+            for check_measure in check_order:
+                if check_measure in measure_start_beats:
+                    end_beat = measure_start_beats[check_measure]
+                    break
+            if end_beat is None:
+                # Fallback: divide evenly
+                end_beat = total_beats * (i + 1) / num_sections
+
+        section_beat_ranges.append((start_beat, end_beat))
+
+    sections = []
+    for i, info in enumerate(section_info):
+        start_beat, end_beat = section_beat_ranges[i]
+
+        notes_in_section = []
         for n in sorted_notes:
             note_start = n['start_time']
-            # Note belongs to this section if it starts within the section boundaries
-            if section_start_beat <= note_start < section_end_beat:
+            if start_beat <= note_start < end_beat:
+                notes_in_section.append(n)
+
+        section_notes = []
+        if notes_in_section:
+            # Find the earliest start time in this section to use as offset
+            section_start_time = min(n['start_time'] for n in notes_in_section)
+
+            for n in notes_in_section:
                 # Adjust start time relative to section start
-                relative_start = note_start - section_start_beat
+                relative_start = n['start_time'] - section_start_time
                 section_notes.append(Note(
                     pitch=n['pitch'],
                     duration=n['duration'],
