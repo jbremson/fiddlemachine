@@ -14,12 +14,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Install frontend dependencies and build
 COPY frontend/package*.json frontend/
-RUN cd frontend && npm install
+WORKDIR /app/frontend
+RUN npm install
 
-COPY frontend/ frontend/
-RUN cd frontend && npm run build
+COPY frontend/ /app/frontend/
+RUN npm run build
 
 # Copy backend
+WORKDIR /app
 COPY backend/ backend/
 COPY main.py .
 COPY resources/ resources/
@@ -28,4 +30,5 @@ COPY resources/ resources/
 ENV PORT=8000
 EXPOSE 8000
 
-CMD python -m uvicorn main:app --host 0.0.0.0 --port $PORT
+# Use shell form to expand $PORT
+CMD ["sh", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port $PORT"]
