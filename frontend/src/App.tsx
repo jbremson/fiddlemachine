@@ -3,15 +3,15 @@ import { TuneBrowser } from './components/TuneBrowser';
 import { NotationView } from './components/NotationView';
 import { TransportControls } from './components/TransportControls';
 import { TempoSlider } from './components/TempoSlider';
-import { SectionSelector } from './components/SectionSelector';
 import { ToneSelector } from './components/ToneSelector';
 import { KeySelector } from './components/KeySelector';
 import { OctaveSelector } from './components/OctaveSelector';
 import { MetronomeSelector } from './components/MetronomeSelector';
 import { HighlightOffsetSlider } from './components/HighlightOffsetSlider';
+import { RepeatSelector } from './components/RepeatSelector';
 import { tunePlayer } from './audio/player';
 import { SynthType, MetronomeType } from './audio/synth';
-import { Tune, TuneSummary, PlaybackState, SectionMode } from './types/tune';
+import { Tune, TuneSummary, PlaybackState } from './types/tune';
 import './styles/main.css';
 
 export function App() {
@@ -20,7 +20,8 @@ export function App() {
   const [selectedTune, setSelectedTune] = useState<Tune | null>(null);
   const [playbackState, setPlaybackState] = useState<PlaybackState>('stopped');
   const [bpm, setBpm] = useState(120);
-  const [sectionMode, setSectionMode] = useState<SectionMode>('full');
+  const [repeatCount, setRepeatCount] = useState(2);
+  const [loopForever, setLoopForever] = useState(false);
   const [progress, setProgress] = useState(0);
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [synthType, setSynthType] = useState<SynthType>('fiddle');
@@ -64,7 +65,6 @@ export function App() {
         tunePlayer.setTune(tune);
         setBpm(tune.default_tempo);
         setProgress(0);
-        setSectionMode('full');
         setTranspose(0);
         setOctaveShift(0);
       }
@@ -100,10 +100,14 @@ export function App() {
     tunePlayer.setBpm(newBpm);
   }, []);
 
-  const handleSectionChange = useCallback((mode: SectionMode) => {
-    setSectionMode(mode);
-    tunePlayer.setSectionMode(mode);
-    setProgress(0);
+  const handleRepeatCountChange = useCallback((count: number) => {
+    setRepeatCount(count);
+    tunePlayer.setRepeatCount(count);
+  }, []);
+
+  const handleLoopForeverChange = useCallback((loop: boolean) => {
+    setLoopForever(loop);
+    tunePlayer.setLooping(loop);
   }, []);
 
   const handleToneChange = useCallback((tone: SynthType) => {
@@ -135,9 +139,6 @@ export function App() {
     tunePlayer.setMetronomeType(type);
   }, []);
 
-  const hasASections = selectedTune?.sections.some((s) => s.name === 'A') ?? false;
-  const hasBSections = selectedTune?.sections.some((s) => s.name === 'B') ?? false;
-
   return (
     <div className="app">
       <header className="app-header">
@@ -152,16 +153,6 @@ export function App() {
             selectedTuneId={selectedTune?.id ?? null}
             onSelectTune={handleSelectTune}
             loading={loadingTunes}
-          />
-        </aside>
-
-        <section className="content">
-          <NotationView
-            tune={selectedTune}
-            transpose={transpose}
-            progress={progress}
-            isPlaying={playbackState === 'playing'}
-            highlightOffset={highlightOffset}
           />
 
           <div className="controls">
@@ -178,11 +169,11 @@ export function App() {
               onBpmChange={handleBpmChange}
             />
 
-            <SectionSelector
-              sectionMode={sectionMode}
-              onSectionChange={handleSectionChange}
-              hasASections={hasASections}
-              hasBSections={hasBSections}
+            <RepeatSelector
+              repeatCount={repeatCount}
+              loopForever={loopForever}
+              onRepeatCountChange={handleRepeatCountChange}
+              onLoopForeverChange={handleLoopForeverChange}
             />
 
             <ToneSelector
@@ -213,6 +204,16 @@ export function App() {
               onOffsetChange={setHighlightOffset}
             />
           </div>
+        </aside>
+
+        <section className="content">
+          <NotationView
+            tune={selectedTune}
+            transpose={transpose}
+            progress={progress}
+            isPlaying={playbackState === 'playing'}
+            highlightOffset={highlightOffset}
+          />
         </section>
       </main>
     </div>

@@ -9,7 +9,9 @@ class TunePlayer {
   private tune: Tune | null = null;
   private sectionMode: SectionMode = 'full';
   private bpm: number = 120;
-  private isLooping: boolean = true;
+  private isLooping: boolean = false;
+  private repeatCount: number = 2;
+  private currentRepeat: number = 0;
   private scheduledEvents: number[] = [];
   private playbackState: PlaybackState = 'stopped';
   private onStateChange: PlaybackCallback | null = null;
@@ -98,6 +100,14 @@ class TunePlayer {
     this.isLooping = loop;
   }
 
+  setRepeatCount(count: number): void {
+    this.repeatCount = Math.max(1, count);
+  }
+
+  getRepeatCount(): number {
+    return this.repeatCount;
+  }
+
   setOnStateChange(callback: PlaybackCallback): void {
     this.onStateChange = callback;
   }
@@ -139,8 +149,8 @@ class TunePlayer {
     const transport = Tone.getTransport();
 
     sections.forEach((section) => {
-      // Play each section twice (AABB form) to observe repeat markers
-      const repeatCount = 2; // Each |: :| section plays twice
+      // Use the section's repeat count from the parsed data (default to 1 if not specified)
+      const repeatCount = section.repeat || 1;
 
       // Calculate section duration and detect pickup notes
       const sectionBeats = section.notes.length > 0
@@ -220,7 +230,8 @@ class TunePlayer {
 
     // Schedule end of tune
     const endEventId = transport.schedule(() => {
-      if (this.isLooping) {
+      this.currentRepeat++;
+      if (this.isLooping || this.currentRepeat < this.repeatCount) {
         // Reset and continue
         transport.stop();
         transport.position = 0;
@@ -308,6 +319,7 @@ class TunePlayer {
     if (this.playbackState === 'paused') {
       Tone.getTransport().start();
     } else {
+      this.currentRepeat = 0;
       this.scheduleNotes();
       Tone.getTransport().start();
     }
