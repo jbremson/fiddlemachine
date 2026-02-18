@@ -24,5 +24,8 @@ COPY backend/ backend/
 COPY main.py .
 COPY resources/ resources/
 
-# Run
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Railway sets PORT env variable
+ENV PORT=8000
+EXPOSE 8000
+
+CMD python -m uvicorn main:app --host 0.0.0.0 --port $PORT
