@@ -342,7 +342,7 @@ class TunePlayer {
 
     await Tone.start();
     createSynth(this.synthType);
-    if (this.metronomeEnabled) {
+    if (this.metronomeEnabled || this.countOffEnabled) {
       createMetronomeSynth(this.metronomeType);
     }
 
@@ -350,6 +350,8 @@ class TunePlayer {
       Tone.getTransport().start();
     } else {
       this.currentRepeat = 0;
+      Tone.getTransport().stop();
+      Tone.getTransport().position = 0;
       this.scheduleNotes();
       Tone.getTransport().start();
     }
