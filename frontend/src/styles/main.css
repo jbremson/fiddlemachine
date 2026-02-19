@@ -868,8 +868,8 @@ body {
 
 /* Count-off Button */
 .countoff-btn {
+  width: 36px;
   height: 36px;
-  padding: 0 0.75rem;
   border: 1px solid #ddd;
   background: white;
   color: #666;
@@ -879,8 +879,6 @@ body {
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
-  font-size: 0.8rem;
-  font-weight: 600;
 }
 
 .countoff-btn:hover {
@@ -891,10 +889,6 @@ body {
   background: #4A90D9;
   border-color: #4A90D9;
   color: white;
-}
-
-.countoff-text {
-  letter-spacing: 1px;
 }
 
 /* Metronome Button */
