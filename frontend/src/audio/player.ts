@@ -53,7 +53,7 @@ class TunePlayer {
   setTune(tune: Tune): void {
     this.stop();
     this.tune = tune;
-    this.bpm = tune.default_tempo;
+    // Don't override user's BPM setting when loading a tune
     Tone.getTransport().bpm.value = this.bpm;
     // Parse time signature for metronome and count-off
     const timeParts = tune.time_signature.split('/');

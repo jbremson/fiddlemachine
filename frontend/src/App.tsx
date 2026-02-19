@@ -59,7 +59,7 @@ export function App() {
         const tune: Tune = await response.json();
         setSelectedTune(tune);
         tunePlayer.setTune(tune);
-        setBpm(tune.default_tempo);
+        // Keep user's BPM setting, don't override with tune's default
         setProgress(0);
         setTranspose(0);
         setOctaveShift(0);
