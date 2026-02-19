@@ -9,7 +9,7 @@ type ProgressCallback = (progress: number) => void;
 class TunePlayer {
   private tune: Tune | null = null;
   private sectionMode: SectionMode = 'full';
-  private bpm: number = 120;
+  private bpm: number = 72;
   private isLooping: boolean = false;
   private repeatCount: number = 2;
   private currentRepeat: number = 0;

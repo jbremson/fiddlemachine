@@ -11,7 +11,7 @@ export function App() {
   const [loadingTunes, setLoadingTunes] = useState(true);
   const [selectedTune, setSelectedTune] = useState<Tune | null>(null);
   const [playbackState, setPlaybackState] = useState<PlaybackState>('stopped');
-  const [bpm, setBpm] = useState(120);
+  const [bpm, setBpm] = useState(72);
   const [repeatCount, setRepeatCount] = useState(2);
   const [loopForever, setLoopForever] = useState(false);
   const [progress, setProgress] = useState(0);
