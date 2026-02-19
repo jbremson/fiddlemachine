@@ -25,6 +25,8 @@ class TunePlayer {
   private metronomeEnabled: boolean = false;
   private metronomeType: MetronomeType = 'click1';
   private beatsPerMeasure: number = 4;
+  private countOffEnabled: boolean = true;
+  private countOffBeats: number = 4;
 
   async initialize(): Promise<void> {
     await Tone.start();
@@ -53,9 +55,12 @@ class TunePlayer {
     this.tune = tune;
     this.bpm = tune.default_tempo;
     Tone.getTransport().bpm.value = this.bpm;
-    // Parse time signature for metronome
+    // Parse time signature for metronome and count-off
     const timeParts = tune.time_signature.split('/');
     this.beatsPerMeasure = parseInt(timeParts[0]) || 4;
+    // Use 3 clicks for 3/4, 6/8, 9/8; otherwise 4 clicks
+    const numerator = parseInt(timeParts[0]) || 4;
+    this.countOffBeats = (numerator === 3 || numerator === 6 || numerator === 9) ? 3 : 4;
   }
 
   setMetronome(enabled: boolean): void {
@@ -99,6 +104,14 @@ class TunePlayer {
 
   getMetronomeType(): MetronomeType {
     return this.metronomeType;
+  }
+
+  setCountOff(enabled: boolean): void {
+    this.countOffEnabled = enabled;
+  }
+
+  getCountOff(): boolean {
+    return this.countOffEnabled;
   }
 
   setBpm(bpm: number): void {
@@ -170,8 +183,31 @@ class TunePlayer {
     const sections = this.getSectionsToPlay();
     if (sections.length === 0) return;
 
-    let sectionOffsetBeats = 0;
     const transport = Tone.getTransport();
+
+    // Calculate count-off offset
+    const countOffOffset = this.countOffEnabled ? this.countOffBeats : 0;
+    let sectionOffsetBeats = countOffOffset;
+
+    // Schedule count-off clicks
+    if (this.countOffEnabled) {
+      createMetronomeSynth(this.metronomeType);
+      const metronome = getMetronomeSynth();
+      if (metronome) {
+        const clickPitch = 'C5';
+        for (let beat = 0; beat < this.countOffBeats; beat++) {
+          const beatTimeSecs = this.beatsToSeconds(beat);
+          const eventId = transport.schedule((time) => {
+            if (metronome instanceof Tone.NoiseSynth) {
+              metronome.triggerAttackRelease('32n', time);
+            } else {
+              (metronome as Tone.Synth).triggerAttackRelease(clickPitch, '32n', time);
+            }
+          }, beatTimeSecs);
+          this.scheduledEvents.push(eventId);
+        }
+      }
+    }
 
     sections.forEach((section) => {
       // Use the section's repeat count from the parsed data (default to 1 if not specified)
@@ -224,17 +260,18 @@ class TunePlayer {
       }
     });
 
-    // Store total duration for progress calculation
+    // Store total duration for progress calculation (includes count-off)
     this.totalDurationSecs = this.beatsToSeconds(sectionOffsetBeats);
 
-    // Schedule metronome clicks if enabled
+    // Schedule metronome clicks if enabled (starting after count-off)
     if (this.metronomeEnabled) {
       const metronome = getMetronomeSynth();
       if (metronome) {
         // Schedule a click on each beat - single tone
         const totalBeats = sectionOffsetBeats;
         const clickPitch = 'C5'; // Single consistent pitch
-        for (let beat = 0; beat < totalBeats; beat++) {
+        // Start metronome clicks after count-off
+        for (let beat = countOffOffset; beat < totalBeats; beat++) {
           const beatTimeSecs = this.beatsToSeconds(beat);
 
           const eventId = transport.schedule((time) => {

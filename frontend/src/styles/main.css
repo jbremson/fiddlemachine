@@ -866,6 +866,37 @@ body {
   font-size: 1.1rem;
 }
 
+/* Count-off Button */
+.countoff-btn {
+  height: 36px;
+  padding: 0 0.75rem;
+  border: 1px solid #ddd;
+  background: white;
+  color: #666;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.countoff-btn:hover {
+  background: #f5f5f5;
+}
+
+.countoff-btn.active {
+  background: #4A90D9;
+  border-color: #4A90D9;
+  color: white;
+}
+
+.countoff-text {
+  letter-spacing: 1px;
+}
+
 /* Metronome Button */
 .metronome-btn {
   width: 36px;

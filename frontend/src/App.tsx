@@ -20,6 +20,7 @@ export function App() {
   const [transpose, setTranspose] = useState(0);
   const [octaveShift, setOctaveShift] = useState(0);
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
+  const [countOffEnabled, setCountOffEnabled] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch tune list on mount
@@ -139,6 +140,11 @@ export function App() {
     tunePlayer.setMetronome(enabled);
   }, []);
 
+  const handleCountOffToggle = useCallback((enabled: boolean) => {
+    setCountOffEnabled(enabled);
+    tunePlayer.setCountOff(enabled);
+  }, []);
+
   // Show tune list if no tune is selected, otherwise show player
   if (!selectedTune) {
     return (
@@ -164,6 +170,7 @@ export function App() {
       transpose={transpose}
       octaveShift={octaveShift}
       metronomeEnabled={metronomeEnabled}
+      countOffEnabled={countOffEnabled}
       error={error}
       onBack={handleBack}
       onPlay={handlePlay}
@@ -176,6 +183,7 @@ export function App() {
       onOctaveChange={handleOctaveChange}
       onTransposeChange={handleTransposeChange}
       onMetronomeToggle={handleMetronomeToggle}
+      onCountOffToggle={handleCountOffToggle}
       onDismissError={() => setError(null)}
     />
   );

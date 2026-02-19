@@ -4,6 +4,7 @@ import { TransportControls } from './TransportControls';
 import { OctaveControl } from './OctaveControl';
 import { KeySelector } from './KeySelector';
 import { MetronomeSelector } from './MetronomeSelector';
+import { CountOffButton } from './CountOffButton';
 import { RepeatSelector } from './RepeatSelector';
 import { LoopButton } from './LoopButton';
 import { SettingsPanel } from './SettingsPanel';
@@ -21,6 +22,7 @@ interface PlayerViewProps {
   transpose: number;
   octaveShift: number;
   metronomeEnabled: boolean;
+  countOffEnabled: boolean;
   error: string | null;
   onBack: () => void;
   onPlay: () => void;
@@ -33,6 +35,7 @@ interface PlayerViewProps {
   onOctaveChange: (shift: number) => void;
   onTransposeChange: (semitones: number) => void;
   onMetronomeToggle: (enabled: boolean) => void;
+  onCountOffToggle: (enabled: boolean) => void;
   onDismissError: () => void;
 }
 
@@ -47,6 +50,7 @@ export function PlayerView({
   transpose,
   octaveShift,
   metronomeEnabled,
+  countOffEnabled,
   error,
   onBack,
   onPlay,
@@ -59,6 +63,7 @@ export function PlayerView({
   onOctaveChange,
   onTransposeChange,
   onMetronomeToggle,
+  onCountOffToggle,
   onDismissError,
 }: PlayerViewProps) {
   const [showSettings, setShowSettings] = useState(false);
@@ -134,6 +139,11 @@ export function PlayerView({
                 +
               </button>
             </div>
+
+            <CountOffButton
+              enabled={countOffEnabled}
+              onToggle={onCountOffToggle}
+            />
 
             <MetronomeSelector
               enabled={metronomeEnabled}
