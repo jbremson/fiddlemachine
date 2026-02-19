@@ -102,7 +102,7 @@ class TunePlayer {
   }
 
   setBpm(bpm: number): void {
-    this.bpm = Math.max(30, Math.min(160, bpm));
+    this.bpm = Math.max(30, Math.min(200, bpm));
     Tone.getTransport().bpm.value = this.bpm;
   }
 

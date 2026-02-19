@@ -103,8 +103,9 @@ export function App() {
   }, []);
 
   const handleBpmChange = useCallback((newBpm: number) => {
-    setBpm(newBpm);
-    tunePlayer.setBpm(newBpm);
+    const clamped = Math.max(30, Math.min(200, newBpm));
+    setBpm(clamped);
+    tunePlayer.setBpm(clamped);
   }, []);
 
   const handleRepeatCountChange = useCallback((count: number) => {

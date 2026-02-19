@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 const MIN_BPM = 30;
-const MAX_BPM = 160;
+const MAX_BPM = 200;
 
 interface TempoSliderProps {
   bpm: number;
