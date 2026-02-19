@@ -1,13 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { TuneBrowser } from './components/TuneBrowser';
-import { NotationView } from './components/NotationView';
-import { TransportControls } from './components/TransportControls';
-import { OctaveControl } from './components/OctaveControl';
-import { KeySelector } from './components/KeySelector';
-import { MetronomeSelector } from './components/MetronomeSelector';
-import { RepeatSelector } from './components/RepeatSelector';
-import { LoopButton } from './components/LoopButton';
-import { SettingsPanel } from './components/SettingsPanel';
+import { TuneList } from './components/TuneList';
+import { PlayerView } from './components/PlayerView';
 import { tunePlayer } from './audio/player';
 import { SynthType } from './audio/synth';
 import { Tune, TuneSummary, PlaybackState } from './types/tune';
@@ -28,8 +21,6 @@ export function App() {
   const [octaveShift, setOctaveShift] = useState(0);
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
-  const highlightOffset = 0;
 
   // Fetch tune list on mount
   useEffect(() => {
@@ -70,6 +61,7 @@ export function App() {
         setBpm(tune.default_tempo);
         setProgress(0);
         setTranspose(0);
+        setOctaveShift(0);
         setError(null);
       } else {
         setError('Failed to load tune');
@@ -78,6 +70,13 @@ export function App() {
       console.error('Failed to fetch tune:', err);
       setError('Failed to load tune');
     }
+  }, []);
+
+  const handleBack = useCallback(() => {
+    tunePlayer.stop();
+    setSelectedTune(null);
+    setProgress(0);
+    setPlaybackState('stopped');
   }, []);
 
   // Initialize audio on first play
@@ -130,7 +129,6 @@ export function App() {
   }, []);
 
   const handleTransposeChange = useCallback((semitones: number) => {
-    // Limit to +/- 12 semitones (one octave)
     const limited = Math.max(-12, Math.min(12, semitones));
     setTranspose(limited);
     tunePlayer.setTranspose(limited);
@@ -141,116 +139,44 @@ export function App() {
     tunePlayer.setMetronome(enabled);
   }, []);
 
+  // Show tune list if no tune is selected, otherwise show player
+  if (!selectedTune) {
+    return (
+      <TuneList
+        tunes={tunes}
+        loading={loadingTunes}
+        error={error}
+        onSelectTune={handleSelectTune}
+        onDismissError={() => setError(null)}
+      />
+    );
+  }
+
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>FiddleMachine</h1>
-        <p>Learn fiddle tunes by ear</p>
-      </header>
-
-      {error && (
-        <div className="error-banner" role="alert">
-          {error}
-          <button onClick={() => setError(null)} aria-label="Dismiss error">×</button>
-        </div>
-      )}
-
-      <main className="app-main">
-        <aside className="sidebar">
-          <TuneBrowser
-            tunes={tunes}
-            selectedTuneId={selectedTune?.id ?? null}
-            onSelectTune={handleSelectTune}
-            loading={loadingTunes}
-          />
-        </aside>
-
-        <section className="content">
-          <div className="controls-bar">
-            <div className="controls-row">
-              <KeySelector
-                currentKey={selectedTune?.key ?? 'C'}
-                transpose={transpose}
-                onTransposeChange={handleTransposeChange}
-              />
-
-              <OctaveControl
-                octaveShift={octaveShift}
-                onOctaveChange={handleOctaveChange}
-              />
-
-              <button
-                className="settings-btn"
-                onClick={() => setShowSettings(!showSettings)}
-                title="Settings"
-                aria-label="Settings"
-                aria-expanded={showSettings}
-              >
-                ⚙
-              </button>
-            </div>
-
-            <div className="controls-row">
-              <TransportControls
-                playbackState={playbackState}
-                onPlay={handlePlay}
-                onPause={handlePause}
-                onStop={handleStop}
-                disabled={!selectedTune}
-              />
-
-              <div className="tempo-control" role="group" aria-label="Tempo control">
-                <button
-                  className="tempo-btn"
-                  onClick={() => handleBpmChange(bpm - 5)}
-                  aria-label="Decrease tempo"
-                >
-                  −
-                </button>
-                <span className="tempo-display" aria-live="polite">{bpm} <small>BPM</small></span>
-                <button
-                  className="tempo-btn"
-                  onClick={() => handleBpmChange(bpm + 5)}
-                  aria-label="Increase tempo"
-                >
-                  +
-                </button>
-              </div>
-
-              <MetronomeSelector
-                enabled={metronomeEnabled}
-                onToggle={handleMetronomeToggle}
-              />
-
-              <RepeatSelector
-                repeatCount={repeatCount}
-                onRepeatCountChange={handleRepeatCountChange}
-              />
-
-              <LoopButton
-                looping={loopForever}
-                onToggle={handleLoopForeverChange}
-              />
-            </div>
-
-            {showSettings && (
-              <SettingsPanel
-                synthType={synthType}
-                onSynthTypeChange={handleToneChange}
-                onClose={() => setShowSettings(false)}
-              />
-            )}
-          </div>
-
-          <NotationView
-            tune={selectedTune}
-            transpose={transpose}
-            progress={progress}
-            isPlaying={playbackState === 'playing'}
-            highlightOffset={highlightOffset}
-          />
-        </section>
-      </main>
-    </div>
+    <PlayerView
+      tune={selectedTune}
+      playbackState={playbackState}
+      bpm={bpm}
+      repeatCount={repeatCount}
+      loopForever={loopForever}
+      progress={progress}
+      synthType={synthType}
+      transpose={transpose}
+      octaveShift={octaveShift}
+      metronomeEnabled={metronomeEnabled}
+      error={error}
+      onBack={handleBack}
+      onPlay={handlePlay}
+      onPause={handlePause}
+      onStop={handleStop}
+      onBpmChange={handleBpmChange}
+      onRepeatCountChange={handleRepeatCountChange}
+      onLoopForeverChange={handleLoopForeverChange}
+      onToneChange={handleToneChange}
+      onOctaveChange={handleOctaveChange}
+      onTransposeChange={handleTransposeChange}
+      onMetronomeToggle={handleMetronomeToggle}
+      onDismissError={() => setError(null)}
+    />
   );
 }

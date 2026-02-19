@@ -70,6 +70,124 @@ body {
   color: #7F1D1D;
 }
 
+/* Tune List Page (Entry Page) */
+.tune-list-page .tune-list-main {
+  flex: 1;
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.tune-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
+}
+
+.tune-card {
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tune-card:hover {
+  border-color: var(--primary-light);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.tune-card:focus {
+  outline: 2px solid var(--primary-light);
+  outline-offset: 2px;
+}
+
+.tune-card-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.tune-card-key {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+/* Player Page */
+.player-page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.player-header {
+  background: var(--primary-color);
+  color: white;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.player-header .back-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+}
+
+.player-header .back-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.player-header .tune-title {
+  flex: 1;
+  font-size: 1.5rem;
+  text-align: center;
+  margin: 0;
+}
+
+.player-header .settings-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.player-header .settings-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.player-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  gap: 1rem;
+  overflow: hidden;
+}
+
+/* Legacy layout (kept for compatibility) */
 .app-main {
   display: flex;
   flex: 1;
@@ -94,7 +212,7 @@ body {
   gap: 1rem;
 }
 
-/* Tune Browser */
+/* Tune Browser (legacy) */
 .tune-browser {
   background: var(--sidebar-bg);
   border-radius: 8px;
@@ -893,6 +1011,23 @@ body {
   }
 
   .section-selector {
+    justify-content: center;
+  }
+
+  .tune-list-page .tune-list-main {
+    padding: 1rem;
+  }
+
+  .tune-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .player-header .tune-title {
+    font-size: 1.1rem;
+  }
+
+  .controls-row {
+    flex-wrap: wrap;
     justify-content: center;
   }
 }
