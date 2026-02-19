@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { TuneBrowser } from './components/TuneBrowser';
 import { NotationView } from './components/NotationView';
 import { TransportControls } from './components/TransportControls';
-import { InstrumentToggle } from './components/InstrumentToggle';
+import { OctaveControl } from './components/OctaveControl';
 import { KeySelector } from './components/KeySelector';
 import { MetronomeSelector } from './components/MetronomeSelector';
 import { RepeatSelector } from './components/RepeatSelector';
+import { LoopButton } from './components/LoopButton';
 import { SettingsPanel } from './components/SettingsPanel';
 import { tunePlayer } from './audio/player';
 import { SynthType } from './audio/synth';
@@ -24,7 +25,7 @@ export function App() {
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [synthType, setSynthType] = useState<SynthType>('fiddle');
   const [transpose, setTranspose] = useState(0);
-  const [instrument, setInstrument] = useState<'fiddle' | 'mandolin'>('fiddle');
+  const [octaveShift, setOctaveShift] = useState(0);
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -121,10 +122,10 @@ export function App() {
     tunePlayer.setSynthType(tone);
   }, []);
 
-  const handleInstrumentChange = useCallback((inst: 'fiddle' | 'mandolin') => {
-    setInstrument(inst);
-    // Mandolin is +1 octave from fiddle
-    tunePlayer.setOctaveShift(inst === 'mandolin' ? 1 : 0);
+  const handleOctaveChange = useCallback((shift: number) => {
+    const limited = Math.max(-2, Math.min(2, shift));
+    setOctaveShift(limited);
+    tunePlayer.setOctaveShift(limited);
   }, []);
 
   const handleTransposeChange = useCallback((semitones: number) => {
@@ -172,9 +173,9 @@ export function App() {
                 onTransposeChange={handleTransposeChange}
               />
 
-              <InstrumentToggle
-                instrument={instrument}
-                onInstrumentChange={handleInstrumentChange}
+              <OctaveControl
+                octaveShift={octaveShift}
+                onOctaveChange={handleOctaveChange}
               />
 
               <button
@@ -222,9 +223,12 @@ export function App() {
 
               <RepeatSelector
                 repeatCount={repeatCount}
-                loopForever={loopForever}
                 onRepeatCountChange={handleRepeatCountChange}
-                onLoopForeverChange={handleLoopForeverChange}
+              />
+
+              <LoopButton
+                looping={loopForever}
+                onToggle={handleLoopForeverChange}
               />
             </div>
 

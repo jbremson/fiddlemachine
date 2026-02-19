@@ -5,21 +5,27 @@ interface MetronomeSelectorProps {
 
 export function MetronomeSelector({ enabled, onToggle }: MetronomeSelectorProps) {
   return (
-    <div className="metronome-selector" role="group" aria-label="Metronome">
-      <button
-        className={enabled ? '' : 'active'}
-        onClick={() => onToggle(false)}
-        aria-pressed={!enabled}
+    <button
+      className={`metronome-btn ${enabled ? 'active' : ''}`}
+      onClick={() => onToggle(!enabled)}
+      title={enabled ? 'Turn metronome off' : 'Turn metronome on'}
+      aria-label={enabled ? 'Turn metronome off' : 'Turn metronome on'}
+      aria-pressed={enabled}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width="20"
+        height="20"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       >
-        Off
-      </button>
-      <button
-        className={enabled ? 'active' : ''}
-        onClick={() => onToggle(true)}
-        aria-pressed={enabled}
-      >
-        Click
-      </button>
-    </div>
+        <path d="M12 2L8 22h8L12 2z" />
+        <path d="M12 6l5 10" />
+        <circle cx="12" cy="18" r="2" />
+      </svg>
+    </button>
   );
 }

@@ -1,6 +1,7 @@
 import * as Tone from 'tone';
 import { Section, Tune, PlaybackState, SectionMode } from '../types/tune';
 import { createSynth, getSynth, createMetronomeSynth, getMetronomeSynth, SynthType, MetronomeType } from './synth';
+import { convertPitch } from './pitch';
 
 type PlaybackCallback = (state: PlaybackState) => void;
 type ProgressCallback = (progress: number) => void;
@@ -210,7 +211,7 @@ class TunePlayer {
 
           const eventId = transport.schedule((time) => {
             // Convert ABC pitch notation to Tone.js format
-            const pitch = this.convertPitch(note.pitch);
+            const pitch = this.convertPitchWithTranspose(note.pitch);
             synth.triggerAttackRelease(pitch, durationSecs, time);
           }, noteTimeSecs);
 
@@ -269,40 +270,8 @@ class TunePlayer {
     this.scheduledEvents.push(endEventId);
   }
 
-  private convertPitch(pitch: string): string {
-    // Convert pitch like "F#4" to Tone.js format and apply transposition + octave shift
-    let normalized = pitch.replace('-', 'b');
-
-    const totalTranspose = this.transpose + (this.octaveShift * 12);
-
-    if (totalTranspose === 0) {
-      return normalized;
-    }
-
-    // Parse the pitch
-    const match = normalized.match(/^([A-G])([#b]?)(\d+)$/);
-    if (!match) return normalized;
-
-    const [, note, accidental, octaveStr] = match;
-    let octave = parseInt(octaveStr);
-
-    // Convert to semitone number (C4 = 60 in MIDI)
-    const noteValues: Record<string, number> = {
-      'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11
-    };
-    let semitone = noteValues[note] + (octave * 12);
-    if (accidental === '#') semitone += 1;
-    if (accidental === 'b') semitone -= 1;
-
-    // Apply transpose and octave shift
-    semitone += totalTranspose;
-
-    // Convert back to note name
-    const newOctave = Math.floor(semitone / 12);
-    const noteIndex = ((semitone % 12) + 12) % 12;
-    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-
-    return noteNames[noteIndex] + newOctave;
+  private convertPitchWithTranspose(pitch: string): string {
+    return convertPitch(pitch, this.transpose, this.octaveShift);
   }
 
   private clearScheduledEvents(): void {

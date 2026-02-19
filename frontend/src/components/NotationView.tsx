@@ -276,7 +276,7 @@ const ZOOM_LEVELS: ZoomLevel[] = [
 export function NotationView({ tune, transpose, progress, isPlaying, highlightOffset = 0 }: NotationViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const lastHighlightedRef = useRef<Element | null>(null);
-  const [highlightVersion, setHighlightVersion] = useState<HighlightVersion>('v3');
+  const [highlightVersion, setHighlightVersion] = useState<HighlightVersion>('off');
   const [zoomIndex, setZoomIndex] = useState(2); // Default to 100%
 
   // Render ABC
