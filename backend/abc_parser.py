@@ -224,14 +224,20 @@ def _assign_notes_to_sections(
                 beats_per_measure = _get_beats_per_measure(time_sig)
                 has_pickup = measure_0_duration < beats_per_measure
 
+            # Check if the next section has a pickup (notes between :|: and first barline)
+            # If so, we need to end this section one measure earlier so the pickup
+            # belongs to the next section
+            next_has_pickup = info.get('next_has_pickup', False)
+            measure_offset = -1 if next_has_pickup else 0
+
             # Look for the first note in the next section's start measure
             # - If there's a pickup, music21's measure numbers match section detection
             # - If no pickup, measure 0 = bar 1, so we need measure - 1
             end_beat = None
             if has_pickup:
-                check_order = [next_start_measure, next_start_measure - 1, next_start_measure + 1]
+                check_order = [next_start_measure + measure_offset, next_start_measure - 1 + measure_offset, next_start_measure + 1 + measure_offset]
             else:
-                check_order = [next_start_measure - 1, next_start_measure, next_start_measure + 1]
+                check_order = [next_start_measure - 1 + measure_offset, next_start_measure + measure_offset, next_start_measure + 1 + measure_offset]
 
             for check_measure in check_order:
                 if check_measure in measure_start_beats:

@@ -1,11 +1,11 @@
-X:1
-T:Angeline the Baker
-R:reel
+X:10
+T:Angeline The Baker
+% Nottingham Music Database
+S:Texas Old Time, via PR
 M:4/4
-L:1/8
+L:1/4
 K:D
-Q:1/4=110
-|:dB|"D"AB d>A Bd2 dB|AB dB/A/ B3 dB|
-AB d>e fe d>e|"A"fe dB A>B A2:|
-|:fg|"D"af ed/e/ fe df/g/|af ed B>B Bfg|
-af ed/e/ fe dd/e/|"A"fe dB A>B A2:|
+|:d/2B/2|"D"AB d3/2A/2|Bd2d/2B/2|AB d/2B/2A|"G"B3d/2B/2|
+"D"AB d3/2e/2|"D"fe "Bm"d3/2e/2|"G"fe dB|"A7"A3/2B/2 A:|:
+f/2g/2|"D"af ed/2e/2|fe df/2g/2|"D7"af ed|"G"B3/2B/2 Bf/2g/2|
+"D"af ed/2e/2|"Bm"fe dd/2e/2|"D"fe "G"dB|"A"A3/2B/2 A:|

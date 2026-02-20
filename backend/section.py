@@ -71,7 +71,10 @@ def _sections_from_repeats(music: str) -> list[dict]:
     tokens = re.split(r'(\:\|\|?\:|\|\:|\:\||\|\||\|)', music)
 
     just_ended_section = False
-    for token in tokens:
+    # Track if next section has a pickup (notes between :|: and the next |)
+    next_section_has_pickup = False
+
+    for i, token in enumerate(tokens):
         token = token.strip()
         if not token:
             continue
@@ -86,11 +89,27 @@ def _sections_from_repeats(music: str) -> list[dict]:
             # End of repeat section
             section_count += 1
             name = 'A' if section_count == 1 else 'B' if section_count == 2 else f'C{section_count-2}'
+
+            # Check if next section has a pickup by looking at content between this marker and next |
+            next_section_has_pickup = False
+            if token in (':||:', ':|:'):
+                # Look ahead for content before next barline
+                for j in range(i + 1, len(tokens)):
+                    next_token = tokens[j].strip()
+                    if not next_token:
+                        continue
+                    if next_token in ('|', '||', '|:', ':|', ':||:', ':|:'):
+                        break
+                    # There's musical content before the next barline - it's a pickup
+                    next_section_has_pickup = True
+                    break
+
             sections.append({
                 'name': name,
                 'start_measure': section_start_measure,
                 'end_measure': current_measure,  # Include the current measure (last bar before :|)
-                'repeat': 2  # Repeat sections play twice
+                'repeat': 2,  # Repeat sections play twice
+                'next_has_pickup': next_section_has_pickup  # Signal to parser
             })
             # Next section starts at next measure, and we move past this bar
             current_measure += 1
