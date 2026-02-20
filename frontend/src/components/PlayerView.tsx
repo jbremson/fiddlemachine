@@ -80,15 +80,6 @@ export function PlayerView({
           ← Back
         </button>
         <h1 className="tune-title">{tune.title}</h1>
-        <button
-          className="settings-btn"
-          onClick={() => setShowSettings(!showSettings)}
-          title="Settings"
-          aria-label="Settings"
-          aria-expanded={showSettings}
-        >
-          ⚙
-        </button>
       </header>
 
       {error && (
@@ -159,6 +150,16 @@ export function PlayerView({
               looping={loopForever}
               onToggle={onLoopForeverChange}
             />
+
+            <button
+              className="settings-btn"
+              onClick={() => setShowSettings(!showSettings)}
+              title="Settings"
+              aria-label="Settings"
+              aria-expanded={showSettings}
+            >
+              ⚙
+            </button>
           </div>
 
           {showSettings && (

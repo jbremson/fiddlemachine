@@ -2,7 +2,9 @@
 
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
+import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -155,3 +157,48 @@ async def sync_tunes():
         "unchanged": sum(1 for r in results.values() if r == 'unchanged'),
         "details": results
     }
+
+
+class FetchUrlRequest(BaseModel):
+    """Request body for fetching ABC from URL."""
+    url: str
+
+
+@router.post("/tunes/fetch-url", response_model=Tune)
+async def fetch_tune_from_url(request: FetchUrlRequest):
+    """Fetch ABC content from a URL and parse it."""
+    url = request.url.strip()
+
+    # Validate URL
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ('http', 'https'):
+            raise HTTPException(status_code=400, detail="URL must use http or https")
+        if not parsed.netloc:
+            raise HTTPException(status_code=400, detail="Invalid URL")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid URL: {str(e)}")
+
+    # Fetch the ABC content
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url, follow_redirects=True)
+            response.raise_for_status()
+            abc_content = response.text
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=408, detail="Request timed out")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=f"Failed to fetch URL: {e.response.status_code}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch URL: {str(e)}")
+
+    # Generate an ID from the URL filename or use a default
+    filename = parsed.path.split('/')[-1] if parsed.path else 'url-tune'
+    tune_id = filename.replace('.abc', '').replace(' ', '_').lower() or 'url-tune'
+
+    # Parse the ABC content
+    try:
+        tune = parse_abc(abc_content, tune_id)
+        return tune
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse ABC content: {str(e)}")

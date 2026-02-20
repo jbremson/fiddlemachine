@@ -174,7 +174,7 @@ class TunePlayer {
     return (beats / bpm) * 60;
   }
 
-  private scheduleNotes(): void {
+  private scheduleNotes(isFirstPlay: boolean = true): void {
     const synth = getSynth();
     if (!synth || !this.tune) return;
 
@@ -185,12 +185,12 @@ class TunePlayer {
 
     const transport = Tone.getTransport();
 
-    // Calculate count-off offset
-    const countOffOffset = this.countOffEnabled ? this.countOffBeats : 0;
+    // Calculate count-off offset (only on first play, not loops)
+    const countOffOffset = (this.countOffEnabled && isFirstPlay) ? this.countOffBeats : 0;
     let sectionOffsetBeats = countOffOffset;
 
-    // Schedule count-off clicks
-    if (this.countOffEnabled) {
+    // Schedule count-off clicks only on first play (not on loops/repeats)
+    if (this.countOffEnabled && isFirstPlay) {
       createMetronomeSynth(this.metronomeType);
       const metronome = getMetronomeSynth();
       if (metronome) {
@@ -294,10 +294,10 @@ class TunePlayer {
     const endEventId = transport.schedule(() => {
       this.currentRepeat++;
       if (this.isLooping || this.currentRepeat < this.repeatCount) {
-        // Reset and continue
+        // Reset and continue (no count-off on loops/repeats)
         transport.stop();
         transport.position = 0;
-        this.scheduleNotes();
+        this.scheduleNotes(false);
         transport.start();
       } else {
         this.stop();

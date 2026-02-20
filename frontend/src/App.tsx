@@ -73,6 +73,58 @@ export function App() {
     }
   }, []);
 
+  // Load tune from URL
+  const handleLoadFromUrl = useCallback(async (url: string) => {
+    try {
+      const response = await fetch('/api/tunes/fetch-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      if (response.ok) {
+        const tune: Tune = await response.json();
+        setSelectedTune(tune);
+        tunePlayer.setTune(tune);
+        setProgress(0);
+        setTranspose(0);
+        setOctaveShift(0);
+        setError(null);
+      } else {
+        const data = await response.json();
+        setError(data.detail || 'Failed to load tune from URL');
+      }
+    } catch (err) {
+      console.error('Failed to fetch tune from URL:', err);
+      setError('Failed to load tune from URL');
+    }
+  }, []);
+
+  // Load tune from pasted ABC
+  const handleLoadFromAbc = useCallback(async (abc: string) => {
+    try {
+      const response = await fetch('/api/tunes/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ abc, id: 'pasted' }),
+      });
+      if (response.ok) {
+        const tune: Tune = await response.json();
+        setSelectedTune(tune);
+        tunePlayer.setTune(tune);
+        setProgress(0);
+        setTranspose(0);
+        setOctaveShift(0);
+        setError(null);
+      } else {
+        const data = await response.json();
+        setError(data.detail || 'Failed to parse ABC');
+      }
+    } catch (err) {
+      console.error('Failed to parse ABC:', err);
+      setError('Failed to parse ABC');
+    }
+  }, []);
+
   const handleBack = useCallback(() => {
     tunePlayer.stop();
     setSelectedTune(null);
@@ -153,6 +205,8 @@ export function App() {
         loading={loadingTunes}
         error={error}
         onSelectTune={handleSelectTune}
+        onLoadFromUrl={handleLoadFromUrl}
+        onLoadFromAbc={handleLoadFromAbc}
         onDismissError={() => setError(null)}
       />
     );
