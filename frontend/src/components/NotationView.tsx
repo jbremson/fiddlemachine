@@ -110,25 +110,86 @@ export function NotationView({ tune, transpose }: NotationViewProps) {
     return (<div className="notation-view empty"><p>Select a tune to view notation</p></div>);
   }
 
+  const handlePrint = () => {
+    if (!containerRef.current || !tune) return;
+
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    // Get the SVG content from the notation container
+    const svgElement = containerRef.current.querySelector('svg');
+    const svgContent = svgElement ? svgElement.outerHTML : '';
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${tune.title}</title>
+          <style>
+            body {
+              font-family: Georgia, serif;
+              padding: 20px;
+              max-width: 800px;
+              margin: 0 auto;
+              min-height: 100vh;
+              position: relative;
+            }
+            svg {
+              width: 100%;
+              height: auto;
+            }
+            .footer {
+              position: fixed;
+              bottom: 10px;
+              right: 20px;
+              font-size: 10px;
+              color: #ccc;
+            }
+            @media print {
+              body { padding: 0; }
+              .footer {
+                position: fixed;
+                bottom: 10px;
+                right: 20px;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          ${svgContent}
+          <div class="footer">Created by fiddlemachine.com.</div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
   return (
     <div className="notation-view">
       <div className="notation-controls">
         <div className="zoom-control">
           <label>Zoom: </label>
           <button
-            onClick={() => setZoomIndex(Math.max(0, zoomIndex - 1))}
-            disabled={zoomIndex === 0}
-          >
-            -
-          </button>
-          <span className="zoom-level">{ZOOM_LEVELS[zoomIndex].label}</span>
-          <button
             onClick={() => setZoomIndex(Math.min(ZOOM_LEVELS.length - 1, zoomIndex + 1))}
             disabled={zoomIndex === ZOOM_LEVELS.length - 1}
+            aria-label="Zoom in"
           >
             +
           </button>
+          <span className="zoom-level">{ZOOM_LEVELS[zoomIndex].label}</span>
+          <button
+            onClick={() => setZoomIndex(Math.max(0, zoomIndex - 1))}
+            disabled={zoomIndex === 0}
+            aria-label="Zoom out"
+          >
+            −
+          </button>
         </div>
+        <button className="print-btn" onClick={handlePrint} aria-label="Print notation">
+          Print
+        </button>
       </div>
       <div className="notation-wrapper">
         <div ref={containerRef} className="notation-container" />
