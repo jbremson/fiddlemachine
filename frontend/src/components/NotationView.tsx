@@ -172,19 +172,19 @@ export function NotationView({ tune, transpose }: NotationViewProps) {
         <div className="zoom-control">
           <label>Zoom: </label>
           <button
-            onClick={() => setZoomIndex(Math.min(ZOOM_LEVELS.length - 1, zoomIndex + 1))}
-            disabled={zoomIndex === ZOOM_LEVELS.length - 1}
-            aria-label="Zoom in"
-          >
-            +
-          </button>
-          <span className="zoom-level">{ZOOM_LEVELS[zoomIndex].label}</span>
-          <button
             onClick={() => setZoomIndex(Math.max(0, zoomIndex - 1))}
             disabled={zoomIndex === 0}
             aria-label="Zoom out"
           >
             −
+          </button>
+          <span className="zoom-level">{ZOOM_LEVELS[zoomIndex].label}</span>
+          <button
+            onClick={() => setZoomIndex(Math.min(ZOOM_LEVELS.length - 1, zoomIndex + 1))}
+            disabled={zoomIndex === ZOOM_LEVELS.length - 1}
+            aria-label="Zoom in"
+          >
+            +
           </button>
         </div>
         <button className="print-btn" onClick={handlePrint} aria-label="Print notation">
