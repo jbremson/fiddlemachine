@@ -14,7 +14,6 @@ export function App() {
   const [bpm, setBpm] = useState(72);
   const [repeatCount, setRepeatCount] = useState(2);
   const [loopForever, setLoopForever] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [synthType, setSynthType] = useState<SynthType>('fiddle');
   const [transpose, setTranspose] = useState(0);
@@ -48,7 +47,6 @@ export function App() {
   // Initialize audio player callbacks
   useEffect(() => {
     tunePlayer.setOnStateChange(setPlaybackState);
-    tunePlayer.setOnProgress(setProgress);
   }, []);
 
   // Load selected tune
@@ -60,7 +58,6 @@ export function App() {
         setSelectedTune(tune);
         tunePlayer.setTune(tune);
         // Keep user's BPM setting, don't override with tune's default
-        setProgress(0);
         setTranspose(0);
         setOctaveShift(0);
         setError(null);
@@ -85,7 +82,6 @@ export function App() {
         const tune: Tune = await response.json();
         setSelectedTune(tune);
         tunePlayer.setTune(tune);
-        setProgress(0);
         setTranspose(0);
         setOctaveShift(0);
         setError(null);
@@ -111,7 +107,6 @@ export function App() {
         const tune: Tune = await response.json();
         setSelectedTune(tune);
         tunePlayer.setTune(tune);
-        setProgress(0);
         setTranspose(0);
         setOctaveShift(0);
         setError(null);
@@ -128,7 +123,6 @@ export function App() {
   const handleBack = useCallback(() => {
     tunePlayer.stop();
     setSelectedTune(null);
-    setProgress(0);
     setPlaybackState('stopped');
   }, []);
 
@@ -151,7 +145,6 @@ export function App() {
 
   const handleStop = useCallback(() => {
     tunePlayer.stop();
-    setProgress(0);
   }, []);
 
   const handleBpmChange = useCallback((newBpm: number) => {
@@ -219,7 +212,6 @@ export function App() {
       bpm={bpm}
       repeatCount={repeatCount}
       loopForever={loopForever}
-      progress={progress}
       synthType={synthType}
       transpose={transpose}
       octaveShift={octaveShift}

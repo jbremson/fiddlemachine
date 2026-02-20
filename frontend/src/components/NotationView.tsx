@@ -5,9 +5,6 @@ import { Tune } from '../types/tune';
 interface NotationViewProps {
   tune: Tune | null;
   transpose: number;
-  progress: number;
-  isPlaying: boolean;
-  highlightOffset?: number;
 }
 
 // Transpose functions
@@ -80,189 +77,9 @@ function transposeMusicLine(line: string, semitones: number): string {
   });
 }
 
-type HighlightVersion = 'off' | 'v1' | 'v2' | 'v3';
-
 interface ZoomLevel {
   label: string;
   staffwidth: number;
-}
-
-// V1: Simple direct mapping - no tie handling, just map progress to note index proportionally
-function highlightV1(
-  _tune: Tune,
-  progress: number,
-  noteEls: NodeListOf<Element>,
-  highlightOffset: number
-): number {
-  if (noteEls.length === 0) return -1;
-
-  // Simple: map progress directly to SVG element index
-  const elementIndex = Math.floor(progress * noteEls.length - highlightOffset);
-  return Math.max(0, Math.min(elementIndex, noteEls.length - 1));
-}
-
-// V2: Beat-based mapping without tie adjustment - simpler timing calculation
-function highlightV2(
-  tune: Tune,
-  progress: number,
-  noteEls: NodeListOf<Element>,
-  highlightOffset: number
-): number {
-  // Flatten all notes with absolute timing
-  const allNotes: { start: number; end: number; sectionIdx: number; noteIdx: number }[] = [];
-  let timeOffset = 0;
-
-  tune.sections.forEach((section, secIdx) => {
-    section.notes.forEach((note, noteIdx) => {
-      allNotes.push({
-        start: timeOffset + note.start_time,
-        end: timeOffset + note.start_time + note.duration,
-        sectionIdx: secIdx,
-        noteIdx
-      });
-    });
-    // Add section duration (repeat count from section data)
-    const sectionDur = section.notes.length > 0
-      ? Math.max(...section.notes.map(n => n.start_time + n.duration))
-      : 0;
-    const repeatCount = section.repeat || 1;
-    timeOffset += sectionDur * repeatCount;
-  });
-
-  if (allNotes.length === 0) return -1;
-
-  const totalDuration = timeOffset;
-  const currentTime = Math.max(0, progress * totalDuration - highlightOffset);
-
-  // Find note at current time
-  for (let i = 0; i < allNotes.length; i++) {
-    if (currentTime >= allNotes[i].start && currentTime < allNotes[i].end) {
-      return Math.min(i, noteEls.length - 1);
-    }
-  }
-
-  // Fallback: find last note that started
-  for (let i = allNotes.length - 1; i >= 0; i--) {
-    if (allNotes[i].start <= currentTime) {
-      return Math.min(i, noteEls.length - 1);
-    }
-  }
-
-  return 0;
-}
-
-// V3: Beat-based mapping that handles ties correctly
-// Maps current beat position to SVG element index, accounting for tied notes
-function highlightV3(
-  tune: Tune,
-  progress: number,
-  noteEls: NodeListOf<Element>,
-  highlightOffset: number,
-  beatsPerMeasure: number = 4
-): number {
-  // Calculate total duration across all sections, matching player.ts logic
-  // The player skips pickup notes on repeat passes, so we must account for that
-  let totalBeats = 0;
-  const sectionInfos = tune.sections.map(section => {
-    const sectionBeats = section.notes.length > 0
-      ? Math.max(...section.notes.map(n => n.start_time + n.duration))
-      : 0;
-    const repeatCount = section.repeat || 1;
-
-    // Detect pickup: if section duration is not a multiple of beatsPerMeasure
-    const barsFloat = sectionBeats / beatsPerMeasure;
-    const fullBars = Math.floor(barsFloat);
-    const pickupBeats = sectionBeats - (fullBars * beatsPerMeasure);
-    const hasPickup = pickupBeats > 0 && pickupBeats < beatsPerMeasure;
-
-    // First pass: full section. Subsequent passes: skip pickup
-    // Total = sectionBeats + (repeatCount - 1) * (sectionBeats - pickupBeats)
-    const repeatDuration = hasPickup ? (sectionBeats - pickupBeats) : sectionBeats;
-    const sectionTotalBeats = sectionBeats + (repeatCount - 1) * repeatDuration;
-    totalBeats += sectionTotalBeats;
-
-    return { sectionBeats, repeatCount, pickupBeats, hasPickup };
-  });
-
-  if (totalBeats === 0) return -1;
-
-  const currentBeat = Math.max(0, progress * totalBeats - highlightOffset);
-
-  // Build a flat list of "visual notes" - notes that correspond to SVG elements
-  // Tied notes (consecutive same pitch) are merged into single visual notes
-  const visualNotes: { start: number; end: number; svgIndex: number }[] = [];
-  let beatOffset = 0;
-  let svgIndex = 0;
-
-  for (let secIdx = 0; secIdx < tune.sections.length; secIdx++) {
-    const section = tune.sections[secIdx];
-    const info = sectionInfos[secIdx];
-
-    for (let pass = 0; pass < info.repeatCount; pass++) {
-      // On repeat passes (pass > 0), skip pickup notes to match player.ts
-      const skipBeats = (pass > 0 && info.hasPickup) ? info.pickupBeats : 0;
-
-      let i = 0;
-      while (i < section.notes.length) {
-        const note = section.notes[i];
-
-        // Skip pickup notes on repeat passes
-        if (note.start_time < skipBeats) {
-          i++;
-          continue;
-        }
-
-        // Adjust timing: subtract pickup on repeats so section aligns with beat offset
-        const adjustedStartTime = note.start_time - skipBeats;
-        const noteStart = beatOffset + adjustedStartTime;
-        let noteEnd = noteStart + note.duration;
-
-        // Check if this note ties into following notes (same pitch, consecutive timing)
-        // Extend the duration to include all tied notes
-        let j = i + 1;
-        while (j < section.notes.length) {
-          const nextNote = section.notes[j];
-          const prevNote = section.notes[j - 1];
-          // Check if next note is tied from previous (same pitch, starts when previous ends)
-          if (nextNote.pitch === prevNote.pitch &&
-              Math.abs(prevNote.start_time + prevNote.duration - nextNote.start_time) < 0.01) {
-            // Extend the end time (also adjusted for skip)
-            const adjustedNextEnd = nextNote.start_time - skipBeats + nextNote.duration;
-            noteEnd = beatOffset + adjustedNextEnd;
-            j++;
-          } else {
-            break;
-          }
-        }
-
-        visualNotes.push({ start: noteStart, end: noteEnd, svgIndex });
-        svgIndex++;
-
-        // Skip to the note after the tie chain
-        i = j;
-      }
-
-      // Add section duration (minus pickup on repeat since we skipped it)
-      const repeatDuration = (pass === 0) ? info.sectionBeats : (info.sectionBeats - skipBeats);
-      beatOffset += repeatDuration;
-    }
-  }
-
-  // Find which visual note is active at currentBeat
-  for (const vn of visualNotes) {
-    if (currentBeat >= vn.start && currentBeat < vn.end) {
-      return Math.min(vn.svgIndex, noteEls.length - 1);
-    }
-  }
-
-  // Fallback: find the last visual note that started before currentBeat
-  for (let i = visualNotes.length - 1; i >= 0; i--) {
-    if (visualNotes[i].start <= currentBeat) {
-      return Math.min(visualNotes[i].svgIndex, noteEls.length - 1);
-    }
-  }
-
-  return 0;
 }
 
 const ZOOM_LEVELS: ZoomLevel[] = [
@@ -273,10 +90,8 @@ const ZOOM_LEVELS: ZoomLevel[] = [
   { label: '150%', staffwidth: 1050 },
 ];
 
-export function NotationView({ tune, transpose, progress, isPlaying, highlightOffset = 0 }: NotationViewProps) {
+export function NotationView({ tune, transpose }: NotationViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const lastHighlightedRef = useRef<Element | null>(null);
-  const [highlightVersion, setHighlightVersion] = useState<HighlightVersion>('off');
   const [zoomIndex, setZoomIndex] = useState(2); // Default to 100%
 
   // Render ABC
@@ -289,97 +104,7 @@ export function NotationView({ tune, transpose, progress, isPlaying, highlightOf
       add_classes: true,
       staffwidth: currentZoom.staffwidth,
     });
-
-    // Debug: log note counts and timing
-    const svg = containerRef.current.querySelector('svg');
-    if (svg) {
-      const noteEls = svg.querySelectorAll('.abcjs-note');
-      const dataNotes = tune.sections.reduce((sum, s) => sum + s.notes.length, 0);
-
-      // Count visual notes (accounting for ties)
-      let visualCount = 0;
-      tune.sections.forEach(section => {
-        for (let i = 0; i < section.notes.length; i++) {
-          if (i === 0) {
-            visualCount++;
-          } else {
-            const prev = section.notes[i - 1];
-            const curr = section.notes[i];
-            const isTied = prev.pitch === curr.pitch &&
-              Math.abs(prev.start_time + prev.duration - curr.start_time) < 0.01;
-            if (!isTied) visualCount++;
-          }
-        }
-      });
-
-      console.log(`${tune.title}: ${noteEls.length} SVG elements, ${dataNotes} data notes, ${visualCount} visual (tie-adjusted), diff=${noteEls.length - visualCount}`);
-
-      // Log section timing info
-      tune.sections.forEach((section) => {
-        const sectionBeats = section.notes.length > 0
-          ? Math.max(...section.notes.map(n => n.start_time + n.duration))
-          : 0;
-        console.log(`  Section ${section.name}: ${section.notes.length} notes, ${sectionBeats} beats, repeat=${section.repeat || 1}`);
-      });
-    }
   }, [tune, transpose, zoomIndex]);
-
-  // Update highlighting
-  useEffect(() => {
-    if (!containerRef.current || !tune) return;
-    if (highlightVersion === 'off') {
-      if (lastHighlightedRef.current) {
-        lastHighlightedRef.current.classList.remove('abcjs-note-playing');
-        lastHighlightedRef.current = null;
-      }
-      return;
-    }
-
-    const svg = containerRef.current.querySelector('svg');
-    if (!svg) return;
-
-    const noteEls = svg.querySelectorAll('.abcjs-note');
-    if (noteEls.length === 0) return;
-
-    // Parse beats per measure from time signature (e.g., "3/4" -> 3, "4/4" -> 4)
-    const timeParts = tune.time_signature.split('/');
-    const beatsPerMeasure = parseInt(timeParts[0]) || 4;
-
-    // Get element index based on selected version
-    let elementIndex = -1;
-    switch (highlightVersion) {
-      case 'v1':
-        elementIndex = highlightV1(tune, progress, noteEls, highlightOffset);
-        break;
-      case 'v2':
-        elementIndex = highlightV2(tune, progress, noteEls, highlightOffset);
-        break;
-      case 'v3':
-        elementIndex = highlightV3(tune, progress, noteEls, highlightOffset, beatsPerMeasure);
-        break;
-    }
-
-    // Update DOM
-    if (lastHighlightedRef.current) {
-      lastHighlightedRef.current.classList.remove('abcjs-note-playing');
-    }
-
-    if (elementIndex >= 0 && elementIndex < noteEls.length) {
-      const newEl = noteEls[elementIndex];
-      newEl.classList.add('abcjs-note-playing');
-      lastHighlightedRef.current = newEl;
-    } else {
-      lastHighlightedRef.current = null;
-    }
-  }, [tune, progress, highlightOffset, highlightVersion]);
-
-  // Clear on stop
-  useEffect(() => {
-    if (!isPlaying && progress === 0 && lastHighlightedRef.current) {
-      lastHighlightedRef.current.classList.remove('abcjs-note-playing');
-      lastHighlightedRef.current = null;
-    }
-  }, [isPlaying, progress]);
 
   if (!tune) {
     return (<div className="notation-view empty"><p>Select a tune to view notation</p></div>);
@@ -402,23 +127,6 @@ export function NotationView({ tune, transpose, progress, isPlaying, highlightOf
             disabled={zoomIndex === ZOOM_LEVELS.length - 1}
           >
             +
-          </button>
-        </div>
-        <div className="highlight-toggle" role="group" aria-label="Highlight toggle">
-          <span className="experimental-label">Highlight (experimental):</span>
-          <button
-            className={highlightVersion === 'off' ? 'active' : ''}
-            onClick={() => setHighlightVersion('off')}
-            aria-pressed={highlightVersion === 'off'}
-          >
-            Off
-          </button>
-          <button
-            className={highlightVersion === 'v3' ? 'active' : ''}
-            onClick={() => setHighlightVersion('v3')}
-            aria-pressed={highlightVersion === 'v3'}
-          >
-            On
           </button>
         </div>
       </div>

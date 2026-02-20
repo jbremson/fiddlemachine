@@ -17,7 +17,6 @@ interface PlayerViewProps {
   bpm: number;
   repeatCount: number;
   loopForever: boolean;
-  progress: number;
   synthType: SynthType;
   transpose: number;
   octaveShift: number;
@@ -45,7 +44,6 @@ export function PlayerView({
   bpm,
   repeatCount,
   loopForever,
-  progress,
   synthType,
   transpose,
   octaveShift,
@@ -67,7 +65,6 @@ export function PlayerView({
   onDismissError,
 }: PlayerViewProps) {
   const [showSettings, setShowSettings] = useState(false);
-  const highlightOffset = 0;
 
   return (
     <div className="app player-page">
@@ -174,9 +171,6 @@ export function PlayerView({
         <NotationView
           tune={tune}
           transpose={transpose}
-          progress={progress}
-          isPlaying={playbackState === 'playing'}
-          highlightOffset={highlightOffset}
         />
       </main>
     </div>

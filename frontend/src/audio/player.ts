@@ -4,7 +4,6 @@ import { createSynth, getSynth, createMetronomeSynth, getMetronomeSynth, SynthTy
 import { convertPitch } from './pitch';
 
 type PlaybackCallback = (state: PlaybackState) => void;
-type ProgressCallback = (progress: number) => void;
 
 class TunePlayer {
   private tune: Tune | null = null;
@@ -16,8 +15,6 @@ class TunePlayer {
   private scheduledEvents: number[] = [];
   private playbackState: PlaybackState = 'stopped';
   private onStateChange: PlaybackCallback | null = null;
-  private onProgress: ProgressCallback | null = null;
-  private progressInterval: number | null = null;
   private totalDurationSecs: number = 0;
   private synthType: SynthType = 'fiddle';
   private transpose: number = 0;
@@ -148,10 +145,6 @@ class TunePlayer {
 
   setOnStateChange(callback: PlaybackCallback): void {
     this.onStateChange = callback;
-  }
-
-  setOnProgress(callback: ProgressCallback): void {
-    this.onProgress = callback;
   }
 
   private getSectionsToPlay(): Section[] {
@@ -319,24 +312,6 @@ class TunePlayer {
     this.scheduledEvents = [];
   }
 
-  private startProgressUpdates(): void {
-    this.stopProgressUpdates();
-    this.progressInterval = window.setInterval(() => {
-      if (this.totalDurationSecs > 0 && this.onProgress) {
-        const currentTime = Tone.getTransport().seconds;
-        const progress = Math.min(1, currentTime / this.totalDurationSecs);
-        this.onProgress(progress);
-      }
-    }, 50); // Update ~20 times per second for smooth highlight
-  }
-
-  private stopProgressUpdates(): void {
-    if (this.progressInterval !== null) {
-      window.clearInterval(this.progressInterval);
-      this.progressInterval = null;
-    }
-  }
-
   async play(): Promise<void> {
     if (!this.tune) return;
 
@@ -356,7 +331,6 @@ class TunePlayer {
       Tone.getTransport().start();
     }
 
-    this.startProgressUpdates();
     this.playbackState = 'playing';
     this.onStateChange?.('playing');
   }
@@ -364,7 +338,6 @@ class TunePlayer {
   pause(): void {
     if (this.playbackState === 'playing') {
       Tone.getTransport().pause();
-      this.stopProgressUpdates();
       this.playbackState = 'paused';
       this.onStateChange?.('paused');
     }
@@ -374,9 +347,7 @@ class TunePlayer {
     Tone.getTransport().stop();
     Tone.getTransport().position = 0;
     this.clearScheduledEvents();
-    this.stopProgressUpdates();
     this.playbackState = 'stopped';
-    this.onProgress?.(0);
     this.onStateChange?.('stopped');
   }
 
