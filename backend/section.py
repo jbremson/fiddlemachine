@@ -90,38 +90,52 @@ def _sections_from_repeats(music: str) -> list[dict]:
             section_count += 1
             name = 'A' if section_count == 1 else 'B' if section_count == 2 else f'C{section_count-2}'
 
-            # Check if next section has a pickup by looking at content between this marker and next |
-            # This handles both:
-            # - Combined markers like :|: or :||: with pickup after
-            # - Separate markers like :| followed by |: with pickup between |: and |
+            # Check if next section has a pickup by looking at content after the repeat start
+            # A pickup is a SHORT fragment (typically 1-4 notes) before the first full bar
+            #
+            # For combined markers (:|: or :||:), pickup appears immediately after
+            # For separate markers (:| followed by |:), pickup appears after the |:
             next_section_has_pickup = False
-            found_start_repeat = False
-            for j in range(i + 1, len(tokens)):
-                next_token = tokens[j].strip()
-                if not next_token:
-                    continue
 
-                # For combined markers (:||: or :|:), look for content before next barline
-                if token in (':||:', ':|:'):
+            # Find the content between the start of next section and its first barline
+            pickup_content = None
+            if token in (':||:', ':|:'):
+                # Combined marker - look for content immediately after
+                for j in range(i + 1, len(tokens)):
+                    next_token = tokens[j].strip()
+                    if not next_token:
+                        continue
                     if next_token in ('|', '||', '|:', ':|', ':||:', ':|:'):
                         break
-                    # There's musical content before the next barline - it's a pickup
-                    next_section_has_pickup = True
+                    pickup_content = next_token
                     break
-                else:
-                    # For separate :| marker, look for |: followed by content before |
+            else:
+                # Separate :| marker - look for |: then content before next |
+                found_start_repeat = False
+                for j in range(i + 1, len(tokens)):
+                    next_token = tokens[j].strip()
+                    if not next_token:
+                        continue
                     if next_token == '|:':
                         found_start_repeat = True
                         continue
                     if found_start_repeat:
                         if next_token in ('|', '||', ':|', ':||:', ':|:'):
                             break
-                        # There's musical content after |: before next barline - it's a pickup
-                        next_section_has_pickup = True
+                        pickup_content = next_token
                         break
                     if next_token in ('|', '||'):
-                        # Hit a barline before finding |:, no pickup pattern
                         break
+
+            # Determine if content is a pickup (short) vs full bar (long)
+            # Pickup notes are typically very short - just a few characters of ABC
+            # A full bar has much more content (usually 8+ characters of notes)
+            if pickup_content:
+                # Remove chord symbols like "D" or "Bm" and whitespace for length check
+                cleaned = re.sub(r'"[^"]*"', '', pickup_content).replace(' ', '')
+                # Pickups are typically very short (1-6 chars like "fg", "A2", "d/2B/2")
+                # Full bars are longer (8+ chars)
+                next_section_has_pickup = len(cleaned) <= 6
 
             sections.append({
                 'name': name,

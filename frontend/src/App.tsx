@@ -190,6 +190,30 @@ export function App() {
     tunePlayer.setCountOff(enabled);
   }, []);
 
+  // Reload tune from edited ABC
+  const handleReloadAbc = useCallback(async (abc: string) => {
+    tunePlayer.stop();
+    try {
+      const response = await fetch('/api/tunes/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ abc, id: selectedTune?.id || 'edited' }),
+      });
+      if (response.ok) {
+        const tune: Tune = await response.json();
+        setSelectedTune(tune);
+        tunePlayer.setTune(tune);
+        setError(null);
+      } else {
+        const data = await response.json();
+        setError(data.detail || 'Failed to parse ABC');
+      }
+    } catch (err) {
+      console.error('Failed to parse ABC:', err);
+      setError('Failed to parse ABC');
+    }
+  }, [selectedTune?.id]);
+
   // Show tune list if no tune is selected, otherwise show player
   if (!selectedTune) {
     return (
@@ -231,6 +255,7 @@ export function App() {
       onMetronomeToggle={handleMetronomeToggle}
       onCountOffToggle={handleCountOffToggle}
       onDismissError={() => setError(null)}
+      onReloadAbc={handleReloadAbc}
     />
   );
 }

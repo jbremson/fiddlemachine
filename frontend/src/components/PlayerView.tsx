@@ -36,6 +36,7 @@ interface PlayerViewProps {
   onMetronomeToggle: (enabled: boolean) => void;
   onCountOffToggle: (enabled: boolean) => void;
   onDismissError: () => void;
+  onReloadAbc: (abc: string) => void;
 }
 
 export function PlayerView({
@@ -63,8 +64,11 @@ export function PlayerView({
   onMetronomeToggle,
   onCountOffToggle,
   onDismissError,
+  onReloadAbc,
 }: PlayerViewProps) {
   const [showSettings, setShowSettings] = useState(false);
+  const [showAbcEditor, setShowAbcEditor] = useState(false);
+  const [abcText, setAbcText] = useState(tune.abc);
 
   return (
     <div className="app player-page">
@@ -172,6 +176,35 @@ export function PlayerView({
           tune={tune}
           transpose={transpose}
         />
+
+        <div className="edit-abc-section">
+          <button
+            className="edit-abc-link"
+            onClick={() => {
+              setAbcText(tune.abc);
+              setShowAbcEditor(!showAbcEditor);
+            }}
+          >
+            {showAbcEditor ? 'Hide ABC' : 'Edit ABC'}
+          </button>
+
+          {showAbcEditor && (
+            <div className="abc-editor">
+              <textarea
+                value={abcText}
+                onChange={(e) => setAbcText(e.target.value)}
+                rows={12}
+                spellCheck={false}
+              />
+              <button
+                className="reload-abc-btn"
+                onClick={() => onReloadAbc(abcText)}
+              >
+                Reload
+              </button>
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );

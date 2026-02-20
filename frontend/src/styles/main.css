@@ -1316,3 +1316,65 @@ body {
     justify-content: center;
   }
 }
+
+/* Edit ABC Section */
+.edit-abc-section {
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.edit-abc-link {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0.5rem;
+}
+
+.edit-abc-link:hover {
+  color: var(--primary-color);
+}
+
+.abc-editor {
+  margin-top: 0.75rem;
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1rem;
+  text-align: left;
+}
+
+.abc-editor textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.9rem;
+  resize: vertical;
+  min-height: 150px;
+}
+
+.abc-editor textarea:focus {
+  outline: 2px solid var(--primary-light);
+  outline-offset: 1px;
+  border-color: var(--primary-light);
+}
+
+.reload-abc-btn {
+  margin-top: 0.75rem;
+  padding: 0.5rem 1.5rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.reload-abc-btn:hover {
+  background: var(--primary-light);
+}
