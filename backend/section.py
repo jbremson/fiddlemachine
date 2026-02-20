@@ -91,18 +91,37 @@ def _sections_from_repeats(music: str) -> list[dict]:
             name = 'A' if section_count == 1 else 'B' if section_count == 2 else f'C{section_count-2}'
 
             # Check if next section has a pickup by looking at content between this marker and next |
+            # This handles both:
+            # - Combined markers like :|: or :||: with pickup after
+            # - Separate markers like :| followed by |: with pickup between |: and |
             next_section_has_pickup = False
-            if token in (':||:', ':|:'):
-                # Look ahead for content before next barline
-                for j in range(i + 1, len(tokens)):
-                    next_token = tokens[j].strip()
-                    if not next_token:
-                        continue
+            found_start_repeat = False
+            for j in range(i + 1, len(tokens)):
+                next_token = tokens[j].strip()
+                if not next_token:
+                    continue
+
+                # For combined markers (:||: or :|:), look for content before next barline
+                if token in (':||:', ':|:'):
                     if next_token in ('|', '||', '|:', ':|', ':||:', ':|:'):
                         break
                     # There's musical content before the next barline - it's a pickup
                     next_section_has_pickup = True
                     break
+                else:
+                    # For separate :| marker, look for |: followed by content before |
+                    if next_token == '|:':
+                        found_start_repeat = True
+                        continue
+                    if found_start_repeat:
+                        if next_token in ('|', '||', ':|', ':||:', ':|:'):
+                            break
+                        # There's musical content after |: before next barline - it's a pickup
+                        next_section_has_pickup = True
+                        break
+                    if next_token in ('|', '||'):
+                        # Hit a barline before finding |:, no pickup pattern
+                        break
 
             sections.append({
                 'name': name,
