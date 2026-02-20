@@ -1361,6 +1361,8 @@ body {
   border-radius: 8px;
   padding: 1rem;
   text-align: left;
+  display: flex;
+  flex-direction: column;
 }
 
 .abc-editor textarea {
@@ -1386,6 +1388,7 @@ body {
   background: var(--primary-color);
   color: white;
   border: none;
+  align-self: flex-end;
   border-radius: 4px;
   font-size: 0.9rem;
   cursor: pointer;

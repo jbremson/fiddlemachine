@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { NotationView } from './NotationView';
 import { TransportControls } from './TransportControls';
 import { OctaveControl } from './OctaveControl';
@@ -69,6 +69,13 @@ export function PlayerView({
   const [showSettings, setShowSettings] = useState(false);
   const [showAbcEditor, setShowAbcEditor] = useState(false);
   const [abcText, setAbcText] = useState(tune.abc);
+  const abcEditorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (showAbcEditor && abcEditorRef.current) {
+      abcEditorRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [showAbcEditor]);
 
   return (
     <div className="app player-page">
@@ -189,7 +196,7 @@ export function PlayerView({
           </button>
 
           {showAbcEditor && (
-            <div className="abc-editor">
+            <div className="abc-editor" ref={abcEditorRef}>
               <textarea
                 value={abcText}
                 onChange={(e) => setAbcText(e.target.value)}
