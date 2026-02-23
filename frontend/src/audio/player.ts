@@ -21,7 +21,6 @@ class TunePlayer {
   private octaveShift: number = 0;
   private metronomeEnabled: boolean = false;
   private metronomeType: MetronomeType = 'click1';
-  private beatsPerMeasure: number = 4;
   private countOffEnabled: boolean = true;
   private countOffBeats: number = 4;
 
@@ -52,11 +51,10 @@ class TunePlayer {
     this.tune = tune;
     // Don't override user's BPM setting when loading a tune
     Tone.getTransport().bpm.value = this.bpm;
-    // Parse time signature for metronome and count-off
+    // Parse time signature for count-off
     const timeParts = tune.time_signature.split('/');
-    this.beatsPerMeasure = parseInt(timeParts[0]) || 4;
-    // Use 3 clicks for 3/4, 6/8, 9/8; otherwise 4 clicks
     const numerator = parseInt(timeParts[0]) || 4;
+    // Use 3 clicks for 3/4, 6/8, 9/8; otherwise 4 clicks
     this.countOffBeats = (numerator === 3 || numerator === 6 || numerator === 9) ? 3 : 4;
   }
 
