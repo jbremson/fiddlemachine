@@ -11,6 +11,8 @@ from typing import Iterator
 # Database location
 DB_PATH = Path(__file__).parent.parent / "data" / "tunes.db"
 
+MAX_ABC_CONTENT_LENGTH = 50000
+
 
 class QualityRating(Enum):
     """Quality rating based on highlight risk assessment."""
@@ -26,8 +28,11 @@ class TuneRecord:
     tune_id: str           # Unique identifier (filename without extension)
     title: str
     source: str            # Where the tune came from (e.g., "local", "thesession.org")
-    url: str | None        # Source URL if applicable
+    source_url: str | None # Source URL if applicable
     quality: QualityRating # Highlight quality rating
+    rating: float | None   # User rating 0.0-5.0, NULL when rating_count is 0
+    rating_count: int      # Number of ratings received
+    owner: str | None      # Who owns/submitted this tune
     version: int           # Version number for tracking changes
     abc_content: str       # The ABC notation content
     created_at: datetime
@@ -51,19 +56,51 @@ def get_connection() -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
+def _migrate_schema(conn: sqlite3.Connection) -> None:
+    """Detect old schema and migrate if needed."""
+    cursor = conn.execute("PRAGMA table_info(tunes)")
+    columns = {row['name'] for row in cursor.fetchall()}
+
+    if not columns:
+        return  # Table doesn't exist yet
+
+    # Rename url → source_url
+    if 'url' in columns and 'source_url' not in columns:
+        conn.execute("ALTER TABLE tunes ADD COLUMN source_url TEXT")
+        conn.execute("UPDATE tunes SET source_url = url")
+
+    # Add new columns if missing
+    if 'rating' not in columns:
+        conn.execute("ALTER TABLE tunes ADD COLUMN rating REAL")
+
+    if 'rating_count' not in columns:
+        conn.execute("ALTER TABLE tunes ADD COLUMN rating_count INTEGER NOT NULL DEFAULT 0")
+
+    if 'owner' not in columns:
+        conn.execute("ALTER TABLE tunes ADD COLUMN owner TEXT")
+
+    conn.commit()
+
+
 def init_db() -> None:
     """Initialize the database schema."""
     with get_connection() as conn:
+        # Run migration before creating the table (handles existing DBs)
+        _migrate_schema(conn)
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS tunes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 tune_id TEXT UNIQUE NOT NULL,
                 title TEXT NOT NULL,
                 source TEXT NOT NULL DEFAULT 'local',
-                url TEXT,
+                source_url TEXT,
                 quality TEXT NOT NULL DEFAULT 'medium',
+                rating REAL,
+                rating_count INTEGER NOT NULL DEFAULT 0,
+                owner TEXT,
                 version INTEGER NOT NULL DEFAULT 1,
-                abc_content TEXT NOT NULL,
+                abc_content TEXT NOT NULL CHECK(length(abc_content) <= 50000),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -84,13 +121,20 @@ def init_db() -> None:
 
 def _row_to_record(row: sqlite3.Row) -> TuneRecord:
     """Convert a database row to a TuneRecord."""
+    # Handle both old schema (url) and new schema (source_url)
+    keys = row.keys()
+    source_url = row['source_url'] if 'source_url' in keys else row.get('url')
+
     return TuneRecord(
         id=row['id'],
         tune_id=row['tune_id'],
         title=row['title'],
         source=row['source'],
-        url=row['url'],
+        source_url=source_url,
         quality=QualityRating(row['quality']),
+        rating=row['rating'] if 'rating' in keys else None,
+        rating_count=row['rating_count'] if 'rating_count' in keys else 0,
+        owner=row['owner'] if 'owner' in keys else None,
         version=row['version'],
         abc_content=row['abc_content'],
         created_at=datetime.fromisoformat(row['created_at']),
@@ -98,21 +142,32 @@ def _row_to_record(row: sqlite3.Row) -> TuneRecord:
     )
 
 
+def _validate_abc_content(abc_content: str) -> None:
+    """Validate ABC content length."""
+    if len(abc_content) > MAX_ABC_CONTENT_LENGTH:
+        raise ValueError(
+            f"ABC content exceeds maximum length of {MAX_ABC_CONTENT_LENGTH} characters "
+            f"(got {len(abc_content)})"
+        )
+
+
 def insert_tune(
     tune_id: str,
     title: str,
     abc_content: str,
     source: str = "local",
-    url: str | None = None,
+    source_url: str | None = None,
     quality: QualityRating = QualityRating.MEDIUM,
-    version: int = 1
+    version: int = 1,
+    owner: str | None = None
 ) -> TuneRecord:
     """Insert a new tune into the database."""
+    _validate_abc_content(abc_content)
     with get_connection() as conn:
         cursor = conn.execute("""
-            INSERT INTO tunes (tune_id, title, source, url, quality, version, abc_content)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (tune_id, title, source, url, quality.value, version, abc_content))
+            INSERT INTO tunes (tune_id, title, source, source_url, quality, version, abc_content, owner)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (tune_id, title, source, source_url, quality.value, version, abc_content, owner))
         conn.commit()
 
         row = conn.execute("SELECT * FROM tunes WHERE id = ?", (cursor.lastrowid,)).fetchone()
@@ -124,11 +179,15 @@ def update_tune(
     title: str | None = None,
     abc_content: str | None = None,
     source: str | None = None,
-    url: str | None = None,
+    source_url: str | None = None,
     quality: QualityRating | None = None,
+    owner: str | None = None,
     increment_version: bool = True
 ) -> TuneRecord | None:
     """Update an existing tune. Increments version by default."""
+    if abc_content is not None:
+        _validate_abc_content(abc_content)
+
     with get_connection() as conn:
         # Get current record
         row = conn.execute("SELECT * FROM tunes WHERE tune_id = ?", (tune_id,)).fetchone()
@@ -148,12 +207,15 @@ def update_tune(
         if source is not None:
             updates.append("source = ?")
             params.append(source)
-        if url is not None:
-            updates.append("url = ?")
-            params.append(url)
+        if source_url is not None:
+            updates.append("source_url = ?")
+            params.append(source_url)
         if quality is not None:
             updates.append("quality = ?")
             params.append(quality.value)
+        if owner is not None:
+            updates.append("owner = ?")
+            params.append(owner)
         if increment_version:
             updates.append("version = version + 1")
 
@@ -205,8 +267,9 @@ def upsert_tune(
     title: str,
     abc_content: str,
     source: str = "local",
-    url: str | None = None,
-    quality: QualityRating = QualityRating.MEDIUM
+    source_url: str | None = None,
+    quality: QualityRating = QualityRating.MEDIUM,
+    owner: str | None = None
 ) -> TuneRecord:
     """Insert or update a tune. If it exists, increments version."""
     existing = get_tune(tune_id)
@@ -216,16 +279,47 @@ def upsert_tune(
             title=title,
             abc_content=abc_content,
             source=source,
-            url=url,
-            quality=quality
+            source_url=source_url,
+            quality=quality,
+            owner=owner
         )
     else:
-        return insert_tune(tune_id, title, abc_content, source, url, quality)
+        return insert_tune(tune_id, title, abc_content, source, source_url, quality, owner=owner)
+
+
+def add_rating(tune_id: str, value: float) -> TuneRecord | None:
+    """Add a user rating for a tune. Computes running average."""
+    if not 0.0 <= value <= 5.0:
+        raise ValueError("Rating must be between 0.0 and 5.0")
+
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM tunes WHERE tune_id = ?", (tune_id,)).fetchone()
+        if not row:
+            return None
+
+        current_rating = row['rating']
+        current_count = row['rating_count']
+
+        new_count = current_count + 1
+        if current_rating is None:
+            new_rating = value
+        else:
+            new_rating = (current_rating * current_count + value) / new_count
+
+        conn.execute("""
+            UPDATE tunes SET rating = ?, rating_count = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE tune_id = ?
+        """, (new_rating, new_count, tune_id))
+        conn.commit()
+
+        row = conn.execute("SELECT * FROM tunes WHERE tune_id = ?", (tune_id,)).fetchone()
+        return _row_to_record(row)
 
 
 def sync_from_files(tunes_dir: Path | None = None) -> dict[str, str]:
     """
     Sync database from ABC files in the tunes directory.
+    This is a one-time import tool for seeding the database from filesystem tunes.
     Returns a dict of {tune_id: action} where action is 'inserted', 'updated', or 'unchanged'.
     """
     from .abc_parser import parse_abc_file
@@ -295,8 +389,8 @@ def print_tunes_table() -> None:
     source_w = max(len(t.source) for t in tunes)
 
     # Header
-    print(f"\n{'ID':<{id_w}}  {'Title':<{title_w}}  {'Source':<{source_w}}  Quality  Ver  URL")
-    print("-" * (id_w + title_w + source_w + 30))
+    print(f"\n{'ID':<{id_w}}  {'Title':<{title_w}}  {'Source':<{source_w}}  Quality  Ver  Rating     URL")
+    print("-" * (id_w + title_w + source_w + 50))
 
     # Rows
     for t in tunes:
@@ -307,9 +401,10 @@ def print_tunes_table() -> None:
         }
         reset = '\033[0m'
         color = quality_colors[t.quality]
-        url = t.url or '-'
+        url = t.source_url or '-'
+        rating_str = f"{t.rating:.1f}({t.rating_count})" if t.rating is not None else "-"
         print(f"{t.tune_id:<{id_w}}  {t.title:<{title_w}}  {t.source:<{source_w}}  "
-              f"{color}{t.quality.value:6}{reset}   {t.version:3}  {url}")
+              f"{color}{t.quality.value:6}{reset}   {t.version:3}  {rating_str:9}  {url}")
 
 
 # CLI interface
@@ -323,7 +418,7 @@ if __name__ == '__main__':
     subparsers.add_parser('init', help='Initialize the database')
 
     # sync command
-    sync_parser = subparsers.add_parser('sync', help='Sync database from ABC files')
+    sync_parser = subparsers.add_parser('sync', help='Sync database from ABC files (one-time import)')
     sync_parser.add_argument('--dir', help='Tunes directory (default: resources/tunes)')
 
     # list command
@@ -337,9 +432,10 @@ if __name__ == '__main__':
     update_parser = subparsers.add_parser('update', help='Update tune metadata')
     update_parser.add_argument('tune_id', help='Tune ID to update')
     update_parser.add_argument('--source', help='Source (e.g., "thesession.org", "local")')
-    update_parser.add_argument('--url', help='Source URL')
+    update_parser.add_argument('--source-url', help='Source URL')
     update_parser.add_argument('--quality', choices=['high', 'medium', 'low'],
                                help='Highlight quality rating')
+    update_parser.add_argument('--owner', help='Owner/submitter of the tune')
 
     args = parser.parse_args()
 
@@ -368,8 +464,11 @@ if __name__ == '__main__':
             print(f"\nTune: {tune.title}")
             print(f"  ID: {tune.tune_id}")
             print(f"  Source: {tune.source}")
-            print(f"  URL: {tune.url or 'N/A'}")
+            print(f"  URL: {tune.source_url or 'N/A'}")
             print(f"  Quality: {tune.quality.value}")
+            rating_str = f"{tune.rating:.1f} ({tune.rating_count} ratings)" if tune.rating is not None else "No ratings"
+            print(f"  Rating: {rating_str}")
+            print(f"  Owner: {tune.owner or 'N/A'}")
             print(f"  Version: {tune.version}")
             print(f"  Created: {tune.created_at}")
             print(f"  Updated: {tune.updated_at}")
@@ -383,15 +482,17 @@ if __name__ == '__main__':
         result = update_tune(
             args.tune_id,
             source=args.source,
-            url=args.url,
+            source_url=getattr(args, 'source_url', None),
             quality=quality,
+            owner=args.owner,
             increment_version=False
         )
         if result:
             print(f"Updated {args.tune_id}")
             print(f"  Source: {result.source}")
-            print(f"  URL: {result.url or 'N/A'}")
+            print(f"  URL: {result.source_url or 'N/A'}")
             print(f"  Quality: {result.quality.value}")
+            print(f"  Owner: {result.owner or 'N/A'}")
         else:
             print(f"Tune '{args.tune_id}' not found")
 

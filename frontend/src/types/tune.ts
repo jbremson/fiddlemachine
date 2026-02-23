@@ -28,6 +28,16 @@ export interface TuneSummary {
   key: string;
 }
 
+export interface TuneInfo extends TuneSummary {
+  source?: string;
+  source_url?: string;
+  quality?: string;
+  rating?: number | null;
+  rating_count: number;
+  owner?: string;
+  version?: number;
+}
+
 export type PlaybackState = 'stopped' | 'playing' | 'paused';
 
 export type SectionMode = 'full' | 'A' | 'B';
