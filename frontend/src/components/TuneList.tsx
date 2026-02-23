@@ -170,7 +170,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
             aria-expanded={libraryExpanded}
           >
             <span className="library-title">Library</span>
-            <span className="library-count">{tunes.length} tunes</span>
+            {tunes.length > 0 && <span className="library-count">{tunes.length} tunes</span>}
             <span className="library-toggle">{libraryExpanded ? '▼' : '▶'}</span>
           </button>
 
