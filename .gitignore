@@ -28,5 +28,5 @@ Thumbs.db
 htmlcov/
 .pytest_cache/
 
-# Database
-data/
+# Database backups (but keep data/tunes.db for deployment)
+data/*.backup

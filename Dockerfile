@@ -25,6 +25,7 @@ WORKDIR /app
 COPY backend/ backend/
 COPY main.py .
 COPY resources/ resources/
+COPY data/ data/
 
 # Railway sets PORT env variable
 ENV PORT=8000
