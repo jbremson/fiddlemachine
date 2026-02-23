@@ -71,6 +71,7 @@ export function PlayerView({
   const [showAbout, setShowAbout] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
   const [showTuneInfo, setShowTuneInfo] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
   const [tuneMetadata, setTuneMetadata] = useState<TuneInfo | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [abcText, setAbcText] = useState(tune.abc);
@@ -284,6 +285,15 @@ export function PlayerView({
             </div>
           )}
         </div>
+
+        <div className="debug-section">
+          <button
+            className="debug-link"
+            onClick={() => setShowDebug(!showDebug)}
+          >
+            {showDebug ? 'Hide Debug' : 'Debug'}
+          </button>
+        </div>
       </main>
 
       {showAbout && (
@@ -411,6 +421,45 @@ export function PlayerView({
                   )}
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDebug && (
+        <div className="about-overlay" onClick={() => setShowDebug(false)}>
+          <div className="about-popup debug-popup" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="about-close"
+              onClick={() => setShowDebug(false)}
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <h2>Debug Info</h2>
+            <div className="debug-content">
+              <h3>Stored ABC</h3>
+              <pre className="debug-abc">{tune.abc}</pre>
+
+              <h3>Sections</h3>
+              {tune.sections.map((section, i) => (
+                <div key={i} className="debug-section-info">
+                  <h4>Section {section.name} (repeat: {section.repeat})</h4>
+                  <p>Notes: {section.notes.length} | Playback notes: {section.playback_notes?.length || 0}</p>
+                  <details>
+                    <summary>Original notes</summary>
+                    <pre className="debug-notes">
+                      {section.notes.map(n => `${n.pitch} @ ${n.start_time.toFixed(2)} (dur: ${n.duration})`).join('\n')}
+                    </pre>
+                  </details>
+                  <details>
+                    <summary>Expanded playback notes</summary>
+                    <pre className="debug-notes">
+                      {section.playback_notes?.map(n => `${n.pitch} @ ${n.start_time.toFixed(2)} (dur: ${n.duration})`).join('\n') || 'None'}
+                    </pre>
+                  </details>
+                </div>
+              ))}
             </div>
           </div>
         </div>
