@@ -245,11 +245,19 @@ def _assign_notes_to_sections(
             # The next section's pickup (if any) should belong to that section
             # So we end this section where the next section's pickup starts
             if next_has_pickup:
-                # Next section has pickup - the pickup measure in m21 is one before next section's first full bar
-                # Section measure 9 -> m21 measure 8 (with offset -1)
-                # The pickup is in m21 measure 8, so we end at beat where m21 measure 8 starts
-                pickup_m21_measure = next_start_measure + m21_offset
-                check_order = [pickup_m21_measure, pickup_m21_measure - 1, pickup_m21_measure + 1]
+                # Next section has pickup - the pickup measure is one section-measure before
+                # the next section starts. This is independent of the m21_offset because
+                # the pickup is always in the measure that comes right before the section boundary.
+                #
+                # For Angeline (has_pickup=True): next_start=10, pickup at m21 measure 9
+                # For Kitchen Girl (no pickup): next_start=9, pickup at m21 measure 8
+                # Formula: next_start_measure - 1 works for both when tune has pickup,
+                # and next_start_measure + m21_offset works when no pickup
+                if has_pickup:
+                    pickup_m21_measure = next_start_measure - 1
+                else:
+                    pickup_m21_measure = next_start_measure + m21_offset
+                check_order = [pickup_m21_measure, pickup_m21_measure + 1, pickup_m21_measure - 1]
             else:
                 # No pickup - end at the next section's start measure
                 target_measure = next_start_measure + m21_offset
