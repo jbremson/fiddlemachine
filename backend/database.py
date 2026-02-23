@@ -151,6 +151,111 @@ def _validate_abc_content(abc_content: str) -> None:
         )
 
 
+def get_versioned_title(title: str) -> str:
+    """
+    Generate a versioned title if the title already exists.
+
+    If "Soldier's Joy" exists, returns "Soldier's Joy V2".
+    If "Soldier's Joy V2" exists, returns "Soldier's Joy V3", etc.
+    """
+    import re
+
+    with get_connection() as conn:
+        # Check if exact title exists
+        row = conn.execute("SELECT COUNT(*) as cnt FROM tunes WHERE title = ?", (title,)).fetchone()
+        if row['cnt'] == 0:
+            return title
+
+        # Extract base title (remove existing version suffix if present)
+        match = re.match(r'^(.+?)\s+V(\d+)$', title)
+        if match:
+            base_title = match.group(1)
+        else:
+            base_title = title
+
+        # Find all existing versions of this title
+        rows = conn.execute(
+            "SELECT title FROM tunes WHERE title = ? OR title LIKE ?",
+            (base_title, f"{base_title} V%")
+        ).fetchall()
+
+        existing_titles = {row['title'] for row in rows}
+
+        # Find the next available version number
+        version = 2
+        while f"{base_title} V{version}" in existing_titles:
+            version += 1
+
+        return f"{base_title} V{version}"
+
+
+def get_versioned_tune_id(tune_id: str) -> str:
+    """
+    Generate a versioned tune_id if it already exists.
+
+    If "soldiers_joy" exists, returns "soldiers_joy_v2".
+    If "soldiers_joy_v2" exists, returns "soldiers_joy_v3", etc.
+    """
+    import re
+
+    with get_connection() as conn:
+        # Check if exact tune_id exists
+        row = conn.execute("SELECT COUNT(*) as cnt FROM tunes WHERE tune_id = ?", (tune_id,)).fetchone()
+        if row['cnt'] == 0:
+            return tune_id
+
+        # Extract base tune_id (remove existing version suffix if present)
+        match = re.match(r'^(.+?)_v(\d+)$', tune_id)
+        if match:
+            base_id = match.group(1)
+        else:
+            base_id = tune_id
+
+        # Find all existing versions of this tune_id
+        rows = conn.execute(
+            "SELECT tune_id FROM tunes WHERE tune_id = ? OR tune_id LIKE ?",
+            (base_id, f"{base_id}_v%")
+        ).fetchall()
+
+        existing_ids = {row['tune_id'] for row in rows}
+
+        # Find the next available version number
+        version = 2
+        while f"{base_id}_v{version}" in existing_ids:
+            version += 1
+
+        return f"{base_id}_v{version}"
+
+
+def insert_tune_auto_version(
+    tune_id: str,
+    title: str,
+    abc_content: str,
+    source: str = "local",
+    source_url: str | None = None,
+    quality: QualityRating = QualityRating.MEDIUM,
+    owner: str | None = None
+) -> TuneRecord:
+    """
+    Insert a tune, automatically adding version suffix if title/id already exists.
+
+    If a tune with the same title exists, appends " V2", " V3", etc. to the title.
+    If a tune with the same tune_id exists, appends "_v2", "_v3", etc. to the tune_id.
+    """
+    versioned_title = get_versioned_title(title)
+    versioned_id = get_versioned_tune_id(tune_id)
+
+    return insert_tune(
+        tune_id=versioned_id,
+        title=versioned_title,
+        abc_content=abc_content,
+        source=source,
+        source_url=source_url,
+        quality=quality,
+        owner=owner
+    )
+
+
 def insert_tune(
     tune_id: str,
     title: str,

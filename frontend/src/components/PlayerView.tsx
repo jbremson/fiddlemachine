@@ -8,7 +8,7 @@ import { CountOffButton } from './CountOffButton';
 import { RepeatSelector } from './RepeatSelector';
 import { LoopButton } from './LoopButton';
 import { SettingsPanel } from './SettingsPanel';
-import { Tune, PlaybackState } from '../types/tune';
+import { Tune, TuneInfo, PlaybackState } from '../types/tune';
 import { SynthType } from '../audio/synth';
 
 interface PlayerViewProps {
@@ -69,14 +69,43 @@ export function PlayerView({
   const [showSettings, setShowSettings] = useState(false);
   const [showAbcEditor, setShowAbcEditor] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
+  const [showTuneInfo, setShowTuneInfo] = useState(false);
+  const [tuneMetadata, setTuneMetadata] = useState<TuneInfo | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [abcText, setAbcText] = useState(tune.abc);
   const abcEditorRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (showAbcEditor && abcEditorRef.current) {
       abcEditorRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [showAbcEditor]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchTuneMetadata = async () => {
+    try {
+      const response = await fetch(`/api/tunes`);
+      if (response.ok) {
+        const tunes: TuneInfo[] = await response.json();
+        const info = tunes.find(t => t.id === tune.id);
+        setTuneMetadata(info || null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch tune metadata:', err);
+    }
+    setShowTuneInfo(true);
+  };
 
   return (
     <div className="app player-page">
@@ -89,13 +118,39 @@ export function PlayerView({
           ← Back
         </button>
         <h1 className="tune-title">{tune.title}</h1>
-        <button
-          className="about-btn"
-          onClick={() => setShowAbout(true)}
-          aria-label="About FiddleMachine"
-        >
-          About
-        </button>
+        <div className="header-menu" ref={menuRef}>
+          <button
+            className="menu-btn"
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="Menu"
+            aria-expanded={menuOpen}
+          >
+            <span className="menu-icon">☰</span>
+            <span className="menu-label">Menu</span>
+          </button>
+          {menuOpen && (
+            <div className="menu-dropdown menu-dropdown-right">
+              <button
+                className="menu-item"
+                onClick={() => {
+                  setShowChangelog(true);
+                  setMenuOpen(false);
+                }}
+              >
+                Changelog
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => {
+                  setShowAbout(true);
+                  setMenuOpen(false);
+                }}
+              >
+                About
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
       {error && (
@@ -166,6 +221,15 @@ export function PlayerView({
               looping={loopForever}
               onToggle={onLoopForeverChange}
             />
+
+            <button
+              className="info-btn"
+              onClick={fetchTuneMetadata}
+              title="Tune Info"
+              aria-label="Tune Info"
+            >
+              ℹ
+            </button>
 
             <button
               className="settings-btn"
@@ -247,6 +311,105 @@ export function PlayerView({
               <p>
                 <a href="mailto:info@fiddlemachine.com">info@fiddlemachine.com</a>
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showChangelog && (
+        <div className="about-overlay" onClick={() => setShowChangelog(false)}>
+          <div className="about-popup changelog-popup" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="about-close"
+              onClick={() => setShowChangelog(false)}
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <h2>Changelog</h2>
+            <div className="changelog-content">
+              <h3>February 2026</h3>
+              <ul>
+                <li>New golden brown color scheme</li>
+                <li>Edit ABC feature with live reload</li>
+                <li>Improved zoom controls</li>
+                <li>Print button for notation</li>
+                <li>Scrollable notation view</li>
+              </ul>
+              <h3>January 2026</h3>
+              <ul>
+                <li>Initial release</li>
+                <li>ABC notation playback</li>
+                <li>Tempo control</li>
+                <li>Key transposition</li>
+                <li>Metronome and count-off</li>
+                <li>Loop and repeat controls</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTuneInfo && (
+        <div className="about-overlay" onClick={() => setShowTuneInfo(false)}>
+          <div className="about-popup tune-info-popup" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="about-close"
+              onClick={() => setShowTuneInfo(false)}
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <h2>Tune Info</h2>
+            <div className="tune-info-content">
+              <div className="tune-info-row">
+                <span className="tune-info-label">Title:</span>
+                <span className="tune-info-value">{tune.title}</span>
+              </div>
+              <div className="tune-info-row">
+                <span className="tune-info-label">Key:</span>
+                <span className="tune-info-value">{tune.key}</span>
+              </div>
+              <div className="tune-info-row">
+                <span className="tune-info-label">Time:</span>
+                <span className="tune-info-value">{tune.time_signature}</span>
+              </div>
+              <div className="tune-info-row">
+                <span className="tune-info-label">Default Tempo:</span>
+                <span className="tune-info-value">{tune.default_tempo} BPM</span>
+              </div>
+              {tuneMetadata && (
+                <>
+                  <div className="tune-info-row">
+                    <span className="tune-info-label">Source:</span>
+                    <span className="tune-info-value">{tuneMetadata.source || 'Unknown'}</span>
+                  </div>
+                  {tuneMetadata.source_url && (
+                    <div className="tune-info-row">
+                      <span className="tune-info-label">URL:</span>
+                      <span className="tune-info-value">
+                        <a href={tuneMetadata.source_url} target="_blank" rel="noopener noreferrer">
+                          {tuneMetadata.source_url}
+                        </a>
+                      </span>
+                    </div>
+                  )}
+                  {tuneMetadata.rating !== null && tuneMetadata.rating !== undefined && (
+                    <div className="tune-info-row">
+                      <span className="tune-info-label">Rating:</span>
+                      <span className="tune-info-value">
+                        {tuneMetadata.rating.toFixed(1)} ({tuneMetadata.rating_count} ratings)
+                      </span>
+                    </div>
+                  )}
+                  {tuneMetadata.owner && (
+                    <div className="tune-info-row">
+                      <span className="tune-info-label">Owner:</span>
+                      <span className="tune-info-value">{tuneMetadata.owner}</span>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>

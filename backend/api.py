@@ -97,29 +97,48 @@ class TuneCreateRequest(BaseModel):
     source: str = "local"
     source_url: str | None = None
     owner: str | None = None
+    auto_version: bool = False  # If true, auto-add V2, V3, etc. for duplicates
 
 
 @router.post("/tunes", response_model=TuneInfo)
 async def create_tune(request: TuneCreateRequest):
-    """Create a new tune in the database."""
+    """Create a new tune in the database.
+
+    If auto_version is True, automatically appends V2, V3, etc. to the title
+    and _v2, _v3, etc. to the tune_id if duplicates exist.
+    """
     db.init_db()
 
-    # Check if tune already exists
-    existing = db.get_tune(request.tune_id)
-    if existing:
-        raise HTTPException(status_code=409, detail=f"Tune '{request.tune_id}' already exists")
+    if request.auto_version:
+        # Use auto-versioning
+        try:
+            record = db.insert_tune_auto_version(
+                tune_id=request.tune_id,
+                title=request.title,
+                abc_content=request.abc_content,
+                source=request.source,
+                source_url=request.source_url,
+                owner=request.owner
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    else:
+        # Check if tune already exists
+        existing = db.get_tune(request.tune_id)
+        if existing:
+            raise HTTPException(status_code=409, detail=f"Tune '{request.tune_id}' already exists")
 
-    try:
-        record = db.insert_tune(
-            tune_id=request.tune_id,
-            title=request.title,
-            abc_content=request.abc_content,
-            source=request.source,
-            source_url=request.source_url,
-            owner=request.owner
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        try:
+            record = db.insert_tune(
+                tune_id=request.tune_id,
+                title=request.title,
+                abc_content=request.abc_content,
+                source=request.source,
+                source_url=request.source_url,
+                owner=request.owner
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
     return _record_to_tune_info(record)
 
@@ -241,16 +260,40 @@ async def fetch_tune_from_url(request: FetchUrlRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to parse ABC content: {str(e)}")
 
-    # Save to database
+    # Save to database with auto-versioning
     db.init_db()
     try:
-        db.upsert_tune(
-            tune_id=tune_id,
-            title=tune.title,
-            abc_content=abc_content,
-            source=parsed.netloc,
-            source_url=url
-        )
+        # Check if exact tune_id already exists
+        existing = db.get_tune(tune_id)
+        if existing:
+            # If same URL, update existing; otherwise create new version
+            if existing.source_url == url:
+                db.update_tune(
+                    tune_id=tune_id,
+                    title=tune.title,
+                    abc_content=abc_content,
+                    source=parsed.netloc,
+                    source_url=url
+                )
+            else:
+                # Different source, create new version
+                record = db.insert_tune_auto_version(
+                    tune_id=tune_id,
+                    title=tune.title,
+                    abc_content=abc_content,
+                    source=parsed.netloc,
+                    source_url=url
+                )
+                # Update tune object with versioned info
+                tune = parse_abc(abc_content, record.tune_id)
+        else:
+            db.insert_tune(
+                tune_id=tune_id,
+                title=tune.title,
+                abc_content=abc_content,
+                source=parsed.netloc,
+                source_url=url
+            )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
