@@ -68,6 +68,7 @@ export function PlayerView({
 }: PlayerViewProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [showAbcEditor, setShowAbcEditor] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const [abcText, setAbcText] = useState(tune.abc);
   const abcEditorRef = useRef<HTMLDivElement>(null);
 
@@ -88,6 +89,13 @@ export function PlayerView({
           ← Back
         </button>
         <h1 className="tune-title">{tune.title}</h1>
+        <button
+          className="about-btn"
+          onClick={() => setShowAbout(true)}
+          aria-label="About FiddleMachine"
+        >
+          About
+        </button>
       </header>
 
       {error && (
@@ -213,6 +221,36 @@ export function PlayerView({
           )}
         </div>
       </main>
+
+      {showAbout && (
+        <div className="about-overlay" onClick={() => setShowAbout(false)}>
+          <div className="about-popup" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="about-close"
+              onClick={() => setShowAbout(false)}
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <h2>About FiddleMachine</h2>
+            <p>
+              FiddleMachine is a web application for learning fiddle tunes by ear.
+              Load tunes from URLs, paste ABC notation, or browse the built-in library
+              of public domain traditional tunes.
+            </p>
+            <p>
+              Features include adjustable tempo, octave shifting, key transposition,
+              metronome, count-off, and looping.
+            </p>
+            <div className="about-contact">
+              <p>Built and maintained by <strong>Joel Bremson</strong></p>
+              <p>
+                <a href="mailto:info@fiddlemachine.com">info@fiddlemachine.com</a>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

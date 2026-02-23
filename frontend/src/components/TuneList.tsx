@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { TuneSummary } from '../types/tune';
 
 interface TuneListProps {
@@ -17,8 +17,21 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
   const [isLoadingAbc, setIsLoadingAbc] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [libraryExpanded, setLibraryExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Sort tunes alphabetically and filter by search query
   const filteredTunes = tunes
@@ -62,7 +75,41 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
   return (
     <div className="app tune-list-page">
       <header className="app-header">
+        <div className="header-menu" ref={menuRef}>
+          <button
+            className="menu-btn"
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="Menu"
+            aria-expanded={menuOpen}
+          >
+            <span className="menu-icon">☰</span>
+            <span className="menu-label">Menu</span>
+          </button>
+          {menuOpen && (
+            <div className="menu-dropdown">
+              <button
+                className="menu-item"
+                onClick={() => {
+                  setShowChangelog(true);
+                  setMenuOpen(false);
+                }}
+              >
+                Changelog
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => {
+                  setShowAbout(true);
+                  setMenuOpen(false);
+                }}
+              >
+                About
+              </button>
+            </div>
+          )}
+        </div>
         <h1>Fiddle Machine</h1>
+        <div className="header-spacer"></div>
       </header>
 
       {error && (
@@ -173,14 +220,6 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
         </div>
       </main>
 
-      <button
-        className="about-link"
-        onClick={() => setShowAbout(true)}
-        aria-label="About FiddleMachine"
-      >
-        About
-      </button>
-
       {showAbout && (
         <div className="about-overlay" onClick={() => setShowAbout(false)}>
           <div className="about-popup" onClick={(e) => e.stopPropagation()}>
@@ -206,6 +245,40 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
               <p>
                 <a href="mailto:info@fiddlemachine.com">info@fiddlemachine.com</a>
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showChangelog && (
+        <div className="about-overlay" onClick={() => setShowChangelog(false)}>
+          <div className="about-popup changelog-popup" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="about-close"
+              onClick={() => setShowChangelog(false)}
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <h2>Changelog</h2>
+            <div className="changelog-content">
+              <h3>February 2026</h3>
+              <ul>
+                <li>New golden brown color scheme</li>
+                <li>Edit ABC feature with live reload</li>
+                <li>Improved zoom controls</li>
+                <li>Print button for notation</li>
+                <li>Scrollable notation view</li>
+              </ul>
+              <h3>January 2026</h3>
+              <ul>
+                <li>Initial release</li>
+                <li>ABC notation playback</li>
+                <li>Tempo control</li>
+                <li>Key transposition</li>
+                <li>Metronome and count-off</li>
+                <li>Loop and repeat controls</li>
+              </ul>
             </div>
           </div>
         </div>
