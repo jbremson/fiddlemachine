@@ -10,6 +10,7 @@ export interface Section {
   end_measure: number;
   notes: Note[];
   repeat: number;  // Number of times to play this section (1 = no repeat, 2 = repeat once)
+  playback_notes?: Note[];  // Expanded notes for playback (repeats unrolled)
 }
 
 export interface Tune {

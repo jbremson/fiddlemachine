@@ -330,6 +330,7 @@ export function PlayerView({
             <div className="changelog-content">
               <h3>February 2026</h3>
               <ul>
+                <li>Updated playback logic to reduce pickup bar tracking errors</li>
                 <li>New golden brown color scheme</li>
                 <li>Edit ABC feature with live reload</li>
                 <li>Improved zoom controls</li>

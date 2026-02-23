@@ -17,6 +17,7 @@ class Section(BaseModel):
     end_measure: int
     notes: list[Note]
     repeat: int = 1  # Number of times to play this section (1 = no repeat, 2 = repeat once)
+    playback_notes: list[Note] | None = None  # Expanded notes for playback (repeats unrolled)
 
 
 class Tune(BaseModel):

@@ -203,54 +203,34 @@ class TunePlayer {
     }
 
     sections.forEach((section) => {
-      // Use the section's repeat count from the parsed data (default to 1 if not specified)
-      const repeatCount = section.repeat || 1;
+      // Use playback_notes if available (repeats pre-expanded), otherwise fall back to notes
+      const notesToPlay = section.playback_notes || section.notes;
 
-      // Calculate section duration and detect pickup notes
-      const sectionBeats = section.notes.length > 0
-        ? Math.max(...section.notes.map(n => n.start_time + n.duration))
+      // Calculate section duration from the notes we'll play
+      const sectionBeats = notesToPlay.length > 0
+        ? Math.max(...notesToPlay.map(n => n.start_time + n.duration))
         : 4;
 
-      // Detect pickup: if total duration is not a multiple of 4 beats (one bar in 4/4)
-      // the section likely has a pickup. Calculate pickup duration.
-      const barsFloat = sectionBeats / this.beatsPerMeasure;
-      const fullBars = Math.floor(barsFloat);
-      const pickupBeats = sectionBeats - (fullBars * this.beatsPerMeasure);
-      const hasPickup = pickupBeats > 0 && pickupBeats < this.beatsPerMeasure;
+      // Schedule all notes (repeats already expanded in playback_notes)
+      notesToPlay.forEach((note) => {
+        const noteTimeBeats = sectionOffsetBeats + note.start_time;
+        const durationBeats = note.duration;
 
-      // Play the section repeatCount times
-      for (let rep = 0; rep < repeatCount; rep++) {
-        // On repeat (rep > 0), skip pickup notes - they're replaced by the ending
-        const skipBeats = (rep > 0 && hasPickup) ? pickupBeats : 0;
+        // Convert to seconds
+        const noteTimeSecs = this.beatsToSeconds(noteTimeBeats);
+        const durationSecs = Math.max(0.1, this.beatsToSeconds(durationBeats));
 
-        section.notes.forEach((note) => {
-          // Skip pickup notes on repeat
-          if (note.start_time < skipBeats) {
-            return;
-          }
+        const eventId = transport.schedule((time) => {
+          // Convert ABC pitch notation to Tone.js format
+          const pitch = this.convertPitchWithTranspose(note.pitch);
+          synth.triggerAttackRelease(pitch, durationSecs, time);
+        }, noteTimeSecs);
 
-          // Adjust timing: subtract pickup on repeats so section starts at offset
-          const adjustedStartTime = note.start_time - skipBeats;
-          const noteTimeBeats = sectionOffsetBeats + adjustedStartTime;
-          const durationBeats = note.duration;
+        this.scheduledEvents.push(eventId);
+      });
 
-          // Convert to seconds
-          const noteTimeSecs = this.beatsToSeconds(noteTimeBeats);
-          const durationSecs = Math.max(0.1, this.beatsToSeconds(durationBeats));
-
-          const eventId = transport.schedule((time) => {
-            // Convert ABC pitch notation to Tone.js format
-            const pitch = this.convertPitchWithTranspose(note.pitch);
-            synth.triggerAttackRelease(pitch, durationSecs, time);
-          }, noteTimeSecs);
-
-          this.scheduledEvents.push(eventId);
-        });
-
-        // Add section duration to offset (minus pickup on repeat since we skipped it)
-        const repeatDuration = (rep === 0) ? sectionBeats : (sectionBeats - skipBeats);
-        sectionOffsetBeats += repeatDuration;
-      }
+      // Add section duration to offset
+      sectionOffsetBeats += sectionBeats;
     });
 
     // Store total duration for progress calculation (includes count-off)
