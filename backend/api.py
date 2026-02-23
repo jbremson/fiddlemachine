@@ -12,6 +12,25 @@ from . import database as db
 
 router = APIRouter(prefix="/api")
 
+# Cached tune list - populated at startup, updated when tunes change
+_tune_list_cache: list["TuneInfo"] | None = None
+
+
+def _invalidate_tune_cache():
+    """Invalidate the tune list cache."""
+    global _tune_list_cache
+    _tune_list_cache = None
+
+
+def _get_cached_tune_list() -> list["TuneInfo"]:
+    """Get the cached tune list, populating it if necessary."""
+    global _tune_list_cache
+    if _tune_list_cache is None:
+        db.init_db()
+        records = db.get_all_tunes()
+        _tune_list_cache = [_record_to_tune_info(r) for r in records]
+    return _tune_list_cache
+
 
 class TuneInfo(BaseModel):
     """Extended tune info including database metadata."""
@@ -51,10 +70,8 @@ def _record_to_tune_info(record: db.TuneRecord) -> TuneInfo:
 
 @router.get("/tunes", response_model=list[TuneInfo])
 async def list_tunes():
-    """List all available tunes from the database."""
-    db.init_db()
-    records = db.get_all_tunes()
-    return [_record_to_tune_info(r) for r in records]
+    """List all available tunes (cached for performance)."""
+    return _get_cached_tune_list()
 
 
 @router.get("/tunes/{tune_id}", response_model=Tune)
@@ -140,6 +157,7 @@ async def create_tune(request: TuneCreateRequest):
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
+    _invalidate_tune_cache()
     return _record_to_tune_info(record)
 
 
@@ -180,6 +198,7 @@ async def update_tune_metadata(tune_id: str, update: TuneMetadataUpdate):
         increment_version=False  # Don't increment version for metadata-only changes
     )
 
+    _invalidate_tune_cache()
     return _record_to_tune_info(updated)
 
 
@@ -201,6 +220,7 @@ async def rate_tune(tune_id: str, request: RatingRequest):
     if not updated:
         raise HTTPException(status_code=404, detail="Tune not found")
 
+    _invalidate_tune_cache()
     return _record_to_tune_info(updated)
 
 
@@ -208,6 +228,7 @@ async def rate_tune(tune_id: str, request: RatingRequest):
 async def sync_tunes():
     """Sync database from ABC files in resources/tunes. One-time import tool."""
     results = db.sync_from_files()
+    _invalidate_tune_cache()
     return {
         "synced": len(results),
         "inserted": sum(1 for r in results.values() if r == 'inserted'),
@@ -297,4 +318,5 @@ async def fetch_tune_from_url(request: FetchUrlRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    _invalidate_tune_cache()
     return tune
