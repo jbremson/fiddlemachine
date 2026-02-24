@@ -4,6 +4,22 @@ Development notes and learnings for the FiddleMachine fiddle tune learning app.
 
 ---
 
+## Community & Feedback
+
+### 2026-02-20 - Community Post on Mandolin Cafe Forum
+Posted about FiddleMachine on Mandolin Cafe forum to get community feedback on the app.
+- URL: https://www.mandolincafe.net/home/forum/song-and-tune-projects/song-and-tune-projects-aa/3429166-fiddle-machine-abc-player-alpha
+- Purpose: Gather user feedback and feature requests from experienced mandolinists and fiddle players
+- Files: External community forum post
+
+### 2026-02-20 - Community Post on Fiddle Hangout
+Posted about FiddleMachine on Fiddle Hangout forum to get community feedback on the app.
+- URL: https://www.fiddlehangout.com/topic/60650
+- Purpose: Gather user feedback and feature requests from experienced fiddlers
+- Files: External community forum post
+
+---
+
 ## Architecture
 
 ### 2026-02-14 - Note Highlighting Approaches
@@ -73,6 +89,17 @@ TypeScript strict mode (noEmit) catches unused variables. When refactoring, ensu
 ---
 
 ## Project TODOs
+
+### 2026-02-23 - Community Feedback (Fiddle Hangout)
+User feedback received - positive reception, "this is a useful tool". Two suggestions:
+
+1. **Highlight the current playing note** - Visual feedback showing which note is currently being played during playback.
+
+2. **Clarify the BPM setting** - "Beat" is ambiguous (Irish reel and jig is 2 beats per bar). Suggestions:
+   - Bars per minute
+   - Quarter notes per minute
+   - Dotted-quarter notes per minute (for waltzes)
+   - Note: User also liked the "funky BPM increments" (117, 122, 127, etc. - almost prime numbers)
 
 ### 2026-02-15 - Future Features
 - Settings screen
