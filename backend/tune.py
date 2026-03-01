@@ -29,6 +29,7 @@ class Tune(BaseModel):
     default_tempo: int
     abc: str
     sections: list[Section]
+    pickup_beats: float = 0.0  # Duration of pickup notes in beats (0 if no pickup)
 
 
 class TuneSummary(BaseModel):

@@ -122,3 +122,59 @@ Allow users to import their own ABC files to use in the app.
   - Handle multi-tune ABC files (X:1, X:2, etc.)
   - Detect/validate time signature and key
   - Section detection for A/B parts
+
+### 2026-02-26 - URL Deep Link Feature
+Allow external websites to link directly to a tune in FiddleMachine by encoding ABC in the URL.
+- **Use case**: Tune website embeds a "Play in FiddleMachine" link that opens the tune directly
+- **URL format options**:
+  - Query param with base64-encoded ABC: `fiddlemachine.com/?abc=<base64>`
+  - Hash-based: `fiddlemachine.com/#abc=<base64>`
+- **Frontend**: On load, check URL for `abc` param, decode and load tune
+- **Considerations**:
+  - URL length limits (~2000 chars safe) - base64 expands by ~33%
+  - May need URL-safe base64 encoding
+  - Could also support `?url=<abc-file-url>` to fetch ABC from external URL (CORS considerations)
+
+### 2026-02-26 - User Accounts Feature
+
+**Authentication options:**
+1. **OAuth only (Google, GitHub)** - No passwords to manage, no email verification needed, simplest and most secure
+2. **Email/password** - Requires email verification, password hashing (bcrypt), reset flow
+3. **Magic link** - Email a login link, no passwords, but requires email sending infrastructure
+
+**Recommendation:** Start with OAuth (Google) - no verification complexity, Railway doesn't provide email services.
+
+**Email verification on Railway:**
+- Railway doesn't include email services
+- Would need external service: SendGrid, Mailgun, Resend, AWS SES
+- Adds complexity and cost
+- OAuth sidesteps this entirely
+
+**Security for user-submitted ABC files:**
+- **Input validation**: Max file size (e.g., 50KB - plenty for any tune)
+- **Sanitization**: ABC is plain text, but sanitize before storing (strip null bytes, control chars)
+- **Rate limiting**: Limit uploads per user per hour to prevent abuse
+- **Content limits**: Max notes per tune, max sections
+- **No executable content**: ABC has no code execution risk, but validate it parses successfully
+- **SQL injection**: Use parameterized queries (SQLAlchemy/Pydantic handle this)
+- **Storage quotas**: Limit tunes per user (e.g., 100 tunes)
+
+**SQLite limits and scaling:**
+- **File size**: SQLite handles databases up to 281 TB theoretically, ~1GB practical for good performance
+- **Concurrent writes**: Single writer at a time - fine for low-moderate traffic
+- **Railway volume**: Persistent volumes available, but single-instance only
+- **Estimate**: 1000 users × 50 tunes × 5KB = 250MB - SQLite handles easily
+- **When to migrate**: If you hit >100 concurrent users or need multi-instance, move to PostgreSQL (Railway offers managed Postgres)
+
+**Schema additions:**
+```sql
+users (id, email, name, oauth_provider, oauth_id, created_at)
+user_tunes (id, user_id, title, abc_content, created_at, updated_at)
+```
+
+**MVP approach:**
+1. Google OAuth via `authlib` or `python-social-auth`
+2. JWT tokens for session management
+3. User tunes stored in SQLite with foreign key to users
+4. Rate limit: 10 tune uploads per hour
+5. Size limit: 50KB per ABC file, 100 tunes per user

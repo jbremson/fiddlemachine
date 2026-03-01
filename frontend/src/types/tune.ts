@@ -21,6 +21,7 @@ export interface Tune {
   default_tempo: number;
   abc: string;
   sections: Section[];
+  pickup_beats: number;  // Duration of pickup notes in beats (0 if no pickup)
 }
 
 export interface TuneSummary {

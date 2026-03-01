@@ -39,6 +39,9 @@ def parse_abc(abc_content: str, tune_id: str) -> Tune:
     # Generate expanded playback notes (repeats unrolled)
     sections = _expand_playback_notes(sections)
 
+    # Calculate pickup beats for lead-in calculation
+    pickup_beats = _calculate_pickup_beats(sections, time_sig)
+
     return Tune(
         id=tune_id,
         title=title,
@@ -46,7 +49,8 @@ def parse_abc(abc_content: str, tune_id: str) -> Tune:
         time_signature=time_sig,
         default_tempo=default_tempo,
         abc=abc_content,
-        sections=sections
+        sections=sections,
+        pickup_beats=pickup_beats
     )
 
 
@@ -138,6 +142,55 @@ def _get_beats_per_measure(time_sig: str) -> float:
         return numerator * (4 / denominator)
     except (ValueError, IndexError):
         return 4.0
+
+
+def _calculate_pickup_beats(sections: list[Section], time_sig: str) -> float:
+    """
+    Calculate the duration of pickup notes in beats.
+
+    A pickup is a partial first bar - notes that occur before the first full bar.
+    Returns the total duration of pickup notes, or beats_per_bar if no pickup
+    (meaning the first bar is complete).
+
+    Args:
+        sections: List of parsed sections with notes
+        time_sig: Time signature string (e.g., "4/4", "3/4")
+
+    Returns:
+        Duration in beats of the pickup, or beats_per_bar if no pickup
+    """
+    beats_per_bar = _get_beats_per_measure(time_sig)
+
+    if not sections or not sections[0].notes:
+        return beats_per_bar
+
+    first_section = sections[0]
+    notes = first_section.notes
+
+    # Calculate the total duration of notes in the first section
+    # that occur before where the first full bar would end
+    # If the section starts with a pickup, the notes will have start_time < beats_per_bar
+    # but won't fill the whole bar
+
+    # Find the last note that starts before the end of what would be the first full bar
+    # A pickup bar is partial, so total duration of pickup notes < beats_per_bar
+    first_bar_notes = [n for n in notes if n.start_time < beats_per_bar]
+
+    if not first_bar_notes:
+        return beats_per_bar
+
+    # Calculate total duration of notes in the potential pickup bar
+    # The pickup duration is the end time of the last note that fits in the first bar
+    last_note = max(first_bar_notes, key=lambda n: n.start_time + n.duration)
+    pickup_duration = last_note.start_time + last_note.duration
+
+    # If the first bar is full (duration == beats_per_bar), return beats_per_bar
+    # If it's partial (duration < beats_per_bar), that's the pickup duration
+    # Use a small epsilon for floating point comparison
+    if pickup_duration >= beats_per_bar - 0.01:
+        return beats_per_bar
+
+    return pickup_duration
 
 
 def _assign_notes_to_sections(

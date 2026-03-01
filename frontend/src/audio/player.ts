@@ -22,7 +22,8 @@ class TunePlayer {
   private metronomeEnabled: boolean = false;
   private metronomeType: MetronomeType = 'click1';
   private countOffEnabled: boolean = true;
-  private countOffBeats: number = 4;
+  private countOffBeats: number = 4;  // Beats per bar (4 for 4/4, 3 for 3/4)
+  private pickupBeats: number = 0;  // Duration of pickup notes in beats
 
   async initialize(): Promise<void> {
     await Tone.start();
@@ -56,6 +57,8 @@ class TunePlayer {
     const numerator = parseInt(timeParts[0]) || 4;
     // Use 3 clicks for 3/4, 6/8, 9/8; otherwise 4 clicks
     this.countOffBeats = (numerator === 3 || numerator === 6 || numerator === 9) ? 3 : 4;
+    // Store pickup beats for lead-in calculation
+    this.pickupBeats = tune.pickup_beats;
   }
 
   setMetronome(enabled: boolean): void {
@@ -176,17 +179,25 @@ class TunePlayer {
 
     const transport = Tone.getTransport();
 
-    // Calculate count-off offset (only on first play, not loops)
-    const countOffOffset = (this.countOffEnabled && isFirstPlay) ? this.countOffBeats : 0;
-    let sectionOffsetBeats = countOffOffset;
+    // Calculate lead-in beats (only on first play, not loops)
+    // Formula: beatsPerBar + (beatsPerBar - pickupBeats)
+    // This gives 2 full bars when there's a pickup, or just 1 bar when first bar is full
+    // If pickupBeats equals beatsPerBar, there's no pickup and lead-in = beatsPerBar (1 bar)
+    // If pickupBeats < beatsPerBar, lead-in extends to give the player time before the pickup
+    const beatsPerBar = this.countOffBeats;
+    const leadInBeats = beatsPerBar + (beatsPerBar - this.pickupBeats);
+    const leadInOffset = (this.countOffEnabled && isFirstPlay) ? leadInBeats : 0;
+    let sectionOffsetBeats = leadInOffset;
 
-    // Schedule count-off clicks only on first play (not on loops/repeats)
+    // Schedule lead-in clicks only on first play (not on loops/repeats)
     if (this.countOffEnabled && isFirstPlay) {
       createMetronomeSynth(this.metronomeType);
       const metronome = getMetronomeSynth();
       if (metronome) {
         const clickPitch = 'C5';
-        for (let beat = 0; beat < this.countOffBeats; beat++) {
+        // Schedule clicks for the entire lead-in period
+        const totalLeadInClicks = Math.ceil(leadInBeats);
+        for (let beat = 0; beat < totalLeadInClicks; beat++) {
           const beatTimeSecs = this.beatsToSeconds(beat);
           const eventId = transport.schedule((time) => {
             if (metronome instanceof Tone.NoiseSynth) {
@@ -234,15 +245,15 @@ class TunePlayer {
     // Store total duration for progress calculation (includes count-off)
     this.totalDurationSecs = this.beatsToSeconds(sectionOffsetBeats);
 
-    // Schedule metronome clicks if enabled (starting after count-off)
+    // Schedule metronome clicks if enabled (starting after lead-in)
     if (this.metronomeEnabled) {
       const metronome = getMetronomeSynth();
       if (metronome) {
         // Schedule a click on each beat - single tone
         const totalBeats = sectionOffsetBeats;
         const clickPitch = 'C5'; // Single consistent pitch
-        // Start metronome clicks after count-off
-        for (let beat = countOffOffset; beat < totalBeats; beat++) {
+        // Start metronome clicks after lead-in
+        for (let beat = leadInOffset; beat < totalBeats; beat++) {
           const beatTimeSecs = this.beatsToSeconds(beat);
 
           const eventId = transport.schedule((time) => {
