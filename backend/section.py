@@ -110,22 +110,16 @@ def _sections_from_repeats(music: str) -> list[dict]:
                     pickup_content = next_token
                     break
             else:
-                # Separate :| marker - look for |: then content before next |
-                found_start_repeat = False
+                # Separate :| marker - look for content before next | or |:
                 for j in range(i + 1, len(tokens)):
                     next_token = tokens[j].strip()
                     if not next_token:
                         continue
-                    if next_token == '|:':
-                        found_start_repeat = True
-                        continue
-                    if found_start_repeat:
-                        if next_token in ('|', '||', ':|', ':||:', ':|:'):
-                            break
-                        pickup_content = next_token
+                    if next_token in ('|', '||', '|:', ':|', ':||:', ':|:'):
                         break
-                    if next_token in ('|', '||'):
-                        break
+                    # Found music content directly after :|
+                    pickup_content = next_token
+                    break
 
             # Determine if content is a pickup (short) vs full bar (long)
             # Pickup notes are typically very short - just a few characters of ABC
