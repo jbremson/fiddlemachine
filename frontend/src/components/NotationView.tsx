@@ -23,6 +23,9 @@ function transposeAbc(abc: string, semitones: number): string {
   return result.join('\n');
 }
 
+// Use conventional key names (prefer sharps/flats based on standard key signatures)
+const CONVENTIONAL_KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+
 function transposeKeyLine(line: string, semitones: number): string {
   const keyNotes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   const keyFlats = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
@@ -33,7 +36,7 @@ function transposeKeyLine(line: string, semitones: number): string {
     else index = keyNotes.indexOf(keyNote);
     if (index === -1) return match;
     const newIndex = ((index + semitones) % 12 + 12) % 12;
-    return prefix + (semitones < 0 ? keyFlats[newIndex] : keyNotes[newIndex]) + suffix;
+    return prefix + CONVENTIONAL_KEYS[newIndex] + suffix;
   });
 }
 
