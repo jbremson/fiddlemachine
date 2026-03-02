@@ -153,8 +153,19 @@ def _sections_from_repeats(music: str) -> list[dict]:
             current_measure += 1
         # else: it's music content, ignore for section detection
 
-    # If we found sections, return them
+    # If we found repeat sections, check for remaining non-repeating music after the last :|
     if sections:
+        last_end = sections[-1]['end_measure']
+        # Count remaining measures after the last repeat section
+        if current_measure > last_end + 1:
+            section_count += 1
+            name = 'A' if section_count == 1 else 'B' if section_count == 2 else f'C{section_count-2}'
+            sections.append({
+                'name': name,
+                'start_measure': last_end + 1,
+                'end_measure': current_measure,
+                'repeat': 1,  # No repeat for trailing section
+            })
         return sections
 
     return []
