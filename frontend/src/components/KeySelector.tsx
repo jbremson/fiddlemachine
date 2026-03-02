@@ -4,7 +4,7 @@ interface KeySelectorProps {
   onTransposeChange: (semitones: number) => void;
 }
 
-const KEYS = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'F', 'Bb', 'Eb', 'Ab'];
+const KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 
 export function KeySelector({ currentKey, transpose, onTransposeChange }: KeySelectorProps) {
   const baseKey = currentKey.replace(' minor', '').replace(' major', '');
