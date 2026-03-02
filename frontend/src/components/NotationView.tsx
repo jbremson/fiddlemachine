@@ -7,9 +7,39 @@ interface NotationViewProps {
   transpose: number;
 }
 
+// Conventional key names that minimize accidentals
+const CONVENTIONAL_KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+
+// Keys whose key signatures use sharps; all others use flats
+const SHARP_KEYS = new Set(['C', 'G', 'D', 'A', 'E', 'B', 'F#']);
+
+// Determine whether the target key prefers sharps or flats
+function keyUseSharps(keyIndex: number): boolean {
+  return SHARP_KEYS.has(CONVENTIONAL_KEYS[keyIndex]);
+}
+
+// Parse a K: line and return the semitone index of the key, or -1
+function parseKeyIndex(line: string): number {
+  const keyNotes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const keyFlats = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+  const m = line.match(/^K:\s*([A-G])([#b]?)/);
+  if (!m) return -1;
+  const [, keyNote, accidental] = m;
+  if (accidental === '#') return keyNotes.indexOf(keyNote + '#');
+  if (accidental === 'b') return keyFlats.indexOf(keyNote + 'b');
+  return keyNotes.indexOf(keyNote);
+}
+
 // Transpose functions
 function transposeAbc(abc: string, semitones: number): string {
   if (semitones === 0) return abc;
+
+  // Find the original key to determine if target key uses sharps or flats
+  const keyLine = abc.split('\n').find(l => l.trim().startsWith('K:'));
+  const origKeyIndex = keyLine ? parseKeyIndex(keyLine.trim()) : -1;
+  const targetKeyIndex = origKeyIndex >= 0 ? ((origKeyIndex + semitones) % 12 + 12) % 12 : -1;
+  const useSharps = targetKeyIndex >= 0 ? keyUseSharps(targetKeyIndex) : semitones > 0;
+
   const lines = abc.split('\n');
   const result: string[] = [];
   for (const line of lines) {
@@ -17,14 +47,11 @@ function transposeAbc(abc: string, semitones: number): string {
       if (line.trim().startsWith('K:')) result.push(transposeKeyLine(line, semitones));
       else result.push(line);
     } else {
-      result.push(transposeMusicLine(line, semitones));
+      result.push(transposeMusicLine(line, semitones, useSharps));
     }
   }
   return result.join('\n');
 }
-
-// Use conventional key names (prefer sharps/flats based on standard key signatures)
-const CONVENTIONAL_KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 
 function transposeKeyLine(line: string, semitones: number): string {
   const keyNotes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -40,10 +67,10 @@ function transposeKeyLine(line: string, semitones: number): string {
   });
 }
 
-function transposeMusicLine(line: string, semitones: number): string {
+function transposeMusicLine(line: string, semitones: number, useSharps: boolean): string {
   const sharpNotes = ['C', '^C', 'D', '^D', 'E', 'F', '^F', 'G', '^G', 'A', '^A', 'B'];
   const flatNotes = ['C', '_D', 'D', '_E', 'E', 'F', '_G', 'G', '_A', 'A', '_B', 'B'];
-  const noteArray = semitones < 0 ? flatNotes : sharpNotes;
+  const noteArray = useSharps ? sharpNotes : flatNotes;
   return line.replace(/(\^{1,2}|_{1,2}|=)?([A-Ga-g])([,']*)/g, (match, accidental, note, octaveMarkers, offset, fullStr) => {
     const beforeMatch = fullStr.substring(0, offset);
     if ((beforeMatch.match(/"/g) || []).length % 2 === 1) return match;
