@@ -22,19 +22,29 @@ from .database import (
 
 auth_router = APIRouter(prefix="/api")
 
-JWT_SECRET = os.environ.get("JWT_SECRET", "")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_DAYS = 7
 COOKIE_NAME = "fm_auth"
 
+_oauth_initialized = False
 oauth = OAuth()
-oauth.register(
-    name="google",
-    client_id=os.environ.get("GOOGLE_CLIENT_ID", ""),
-    client_secret=os.environ.get("GOOGLE_CLIENT_SECRET", ""),
-    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
-    client_kwargs={"scope": "openid email profile"},
-)
+
+
+def _ensure_oauth():
+    global _oauth_initialized
+    if not _oauth_initialized:
+        oauth.register(
+            name="google",
+            client_id=os.environ.get("GOOGLE_CLIENT_ID", ""),
+            client_secret=os.environ.get("GOOGLE_CLIENT_SECRET", ""),
+            server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+            client_kwargs={"scope": "openid email profile"},
+        )
+        _oauth_initialized = True
+
+
+def _get_jwt_secret() -> str:
+    return os.environ.get("JWT_SECRET", "")
 
 
 def _create_jwt(google_id: str) -> str:
@@ -43,7 +53,7 @@ def _create_jwt(google_id: str) -> str:
         "exp": datetime.now(timezone.utc) + timedelta(days=JWT_EXPIRY_DAYS),
         "iat": datetime.now(timezone.utc),
     }
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return jwt.encode(payload, _get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
 
 def get_current_user(request: Request) -> UserRecord | None:
@@ -52,7 +62,7 @@ def get_current_user(request: Request) -> UserRecord | None:
     if not token:
         return None
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(token, _get_jwt_secret(), algorithms=[JWT_ALGORITHM])
         google_id = payload.get("sub")
         if not google_id:
             return None
@@ -74,6 +84,7 @@ def require_user(user: UserRecord | None = Depends(get_current_user)) -> UserRec
 
 @auth_router.get("/auth/login")
 async def login(request: Request):
+    _ensure_oauth()
     redirect_uri = os.environ.get("OAUTH_REDIRECT_URI")
     if not redirect_uri:
         redirect_uri = str(request.url_for("auth_callback"))
@@ -82,6 +93,7 @@ async def login(request: Request):
 
 @auth_router.get("/auth/callback", name="auth_callback")
 async def auth_callback(request: Request):
+    _ensure_oauth()
     token = await oauth.google.authorize_access_token(request)
     userinfo = token.get("userinfo")
     if not userinfo:
