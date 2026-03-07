@@ -1,20 +1,30 @@
 """FiddleMachine - Fiddle Tune Learning Tool."""
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
+from starlette.middleware.sessions import SessionMiddleware
+import os
 
 from backend.api import router
+from backend.auth import auth_router
 
 app = FastAPI(
     title="FiddleMachine",
     description="Learn fiddle tunes by ear",
-    version="0.1.0"
+    version="2.0.1"
 )
+
+# Session middleware required by authlib OAuth flow
+app.add_middleware(SessionMiddleware, secret_key=os.environ.get("JWT_SECRET", "dev-secret-change-me"))
 
 # Include API routes
 app.include_router(router)
+app.include_router(auth_router)
 
 # Serve static frontend files in production
 frontend_dist = Path(__file__).parent / "frontend" / "dist"

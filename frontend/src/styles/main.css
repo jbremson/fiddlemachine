@@ -290,6 +290,126 @@ body {
   cursor: not-allowed;
 }
 
+/* Auth button in header */
+.header-auth {
+  min-width: 80px;
+  text-align: right;
+}
+
+.auth-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  padding: 0.4rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.auth-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ABC loader action row */
+.abc-loader-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  justify-content: flex-end;
+}
+
+.abc-loader-actions button {
+  margin-top: 0;
+}
+
+.save-btn {
+  background: var(--accent-gold) !important;
+}
+
+.save-btn:hover:not(:disabled) {
+  background: #c49340 !important;
+}
+
+/* Save form */
+.save-form {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: var(--sidebar-bg);
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.save-form input,
+.save-form textarea {
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.save-form-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.save-form-actions button {
+  margin-top: 0;
+}
+
+.cancel-btn {
+  background: #999 !important;
+}
+
+.cancel-btn:hover {
+  background: #777 !important;
+}
+
+.save-error {
+  color: #B91C1C;
+  font-size: 0.85rem;
+}
+
+.save-success {
+  color: #15803d;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+  text-align: right;
+}
+
+/* My Songs */
+.my-song-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.delete-song-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1.2rem;
+  padding: 0 0.5rem;
+  line-height: 1;
+}
+
+.delete-song-btn:hover {
+  color: #B91C1C;
+}
+
+@media (max-width: 600px) {
+  .auth-btn-label {
+    display: none;
+  }
+}
+
 /* Library Section */
 .library-section {
   background: white;

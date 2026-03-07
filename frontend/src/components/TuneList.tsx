@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { TuneSummary } from '../types/tune';
+import { useAuth } from '../context/AuthContext';
 
 interface TuneListProps {
   tunes: TuneSummary[];
@@ -22,6 +23,20 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
   const [libraryExpanded, setLibraryExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const menuRef = useRef<HTMLDivElement>(null);
+  const { user, isLoggedIn, login, logout } = useAuth();
+
+  // Save song state
+  const [showSaveForm, setShowSaveForm] = useState(false);
+  const [saveTitle, setSaveTitle] = useState('');
+  const [saveNotes, setSaveNotes] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // My Songs state
+  const [mySongsExpanded, setMySongsExpanded] = useState(false);
+  const [mySongs, setMySongs] = useState<Array<{ id: number; title: string; notes: string | null; abc_content: string; updated_at: string }>>([]);
+  const [mySongsLoading, setMySongsLoading] = useState(false);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -32,6 +47,68 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Fetch my songs when expanded and logged in
+  useEffect(() => {
+    if (isLoggedIn && mySongsExpanded) {
+      setMySongsLoading(true);
+      fetch('/api/songs')
+        .then(res => res.ok ? res.json() : [])
+        .then(setMySongs)
+        .catch(() => setMySongs([]))
+        .finally(() => setMySongsLoading(false));
+    }
+  }, [isLoggedIn, mySongsExpanded]);
+
+  const handleOpenSaveForm = () => {
+    // Pre-fill title from ABC T: header
+    const match = abcInput.match(/^T:\s*(.+)$/m);
+    setSaveTitle(match ? match[1].trim() : '');
+    setSaveNotes('');
+    setSaveError(null);
+    setSaveSuccess(false);
+    setShowSaveForm(true);
+  };
+
+  const handleSaveSong = async () => {
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      const res = await fetch('/api/songs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: saveTitle, notes: saveNotes || null, abc_content: abcInput.trim() }),
+      });
+      if (res.ok) {
+        setSaveSuccess(true);
+        setShowSaveForm(false);
+        // Refresh my songs if expanded
+        if (mySongsExpanded) {
+          const songs = await fetch('/api/songs').then(r => r.ok ? r.json() : []);
+          setMySongs(songs);
+        }
+      } else {
+        const data = await res.json();
+        setSaveError(data.detail || 'Failed to save song');
+      }
+    } catch {
+      setSaveError('Failed to save song');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteSong = async (songId: number) => {
+    const res = await fetch(`/api/songs/${songId}`, { method: 'DELETE' });
+    if (res.ok) {
+      setMySongs(prev => prev.filter(s => s.id !== songId));
+    }
+  };
+
+  const handleLoadSavedSong = (song: { abc_content: string }) => {
+    setAbcInput(song.abc_content);
+    onLoadFromAbc(song.abc_content);
+  };
 
   // Sort tunes alphabetically and filter by search query
   const filteredTunes = tunes
@@ -109,7 +186,18 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
           )}
         </div>
         <h1>Fiddle Machine</h1>
-        <div className="header-spacer"></div>
+        <div className="header-auth">
+          {isLoggedIn ? (
+            <button className="auth-btn" onClick={logout} title={user?.email || ''}>
+              {user?.name ? user.name.split(' ')[0] : 'Logout'}
+              <span className="auth-btn-label"> - Sign out</span>
+            </button>
+          ) : (
+            <button className="auth-btn" onClick={login}>
+              Sign in
+            </button>
+          )}
+        </div>
       </header>
 
       {error && (
@@ -153,15 +241,97 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
               disabled={isLoadingAbc}
               rows={4}
             />
-            <button
-              onClick={handleAbcSubmit}
-              disabled={!abcInput.trim() || isLoadingAbc}
-              aria-label="Load pasted ABC"
-            >
-              {isLoadingAbc ? 'Loading...' : 'Load ABC'}
-            </button>
+            <div className="abc-loader-actions">
+              <button
+                onClick={handleAbcSubmit}
+                disabled={!abcInput.trim() || isLoadingAbc}
+                aria-label="Load pasted ABC"
+              >
+                {isLoadingAbc ? 'Loading...' : 'Load ABC'}
+              </button>
+              {isLoggedIn && abcInput.trim() && (
+                <button
+                  className="save-btn"
+                  onClick={handleOpenSaveForm}
+                  aria-label="Save to My Songs"
+                >
+                  Save
+                </button>
+              )}
+            </div>
+            {saveSuccess && <div className="save-success">Song saved!</div>}
+            {showSaveForm && (
+              <div className="save-form">
+                <input
+                  type="text"
+                  placeholder="Title"
+                  value={saveTitle}
+                  onChange={(e) => setSaveTitle(e.target.value)}
+                />
+                <textarea
+                  placeholder="Notes (optional)"
+                  value={saveNotes}
+                  onChange={(e) => setSaveNotes(e.target.value)}
+                  rows={2}
+                />
+                {saveError && <div className="save-error">{saveError}</div>}
+                <div className="save-form-actions">
+                  <button onClick={handleSaveSong} disabled={!saveTitle.trim() || isSaving}>
+                    {isSaving ? 'Saving...' : 'Save Song'}
+                  </button>
+                  <button className="cancel-btn" onClick={() => setShowSaveForm(false)}>Cancel</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
+
+        {isLoggedIn && (
+          <div className="library-section my-songs-section">
+            <button
+              className="library-header"
+              onClick={() => setMySongsExpanded(!mySongsExpanded)}
+              aria-expanded={mySongsExpanded}
+            >
+              <span className="library-title">My Songs</span>
+              {mySongs.length > 0 && <span className="library-count">{mySongs.length} songs</span>}
+              <span className="library-toggle">{mySongsExpanded ? '▼' : '▶'}</span>
+            </button>
+
+            {mySongsExpanded && (
+              mySongsLoading ? (
+                <p className="loading">Loading songs...</p>
+              ) : mySongs.length === 0 ? (
+                <p className="empty">No saved songs yet</p>
+              ) : (
+                <ul className="tune-list-compact" role="listbox" aria-label="My saved songs">
+                  {mySongs.map((song) => (
+                    <li key={song.id} className="tune-item-compact my-song-item">
+                      <span
+                        className="tune-item-title"
+                        onClick={() => handleLoadSavedSong(song)}
+                        role="option"
+                        aria-selected={false}
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleLoadSavedSong(song); }}
+                      >
+                        {song.title}
+                      </span>
+                      <button
+                        className="delete-song-btn"
+                        onClick={() => handleDeleteSong(song.id)}
+                        aria-label={`Delete ${song.title}`}
+                        title="Delete song"
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )
+            )}
+          </div>
+        )}
 
         <div className="library-section">
           <button

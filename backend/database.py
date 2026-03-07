@@ -12,6 +12,8 @@ from typing import Iterator
 DB_PATH = Path(__file__).parent.parent / "data" / "tunes.db"
 
 MAX_ABC_CONTENT_LENGTH = 50000
+MAX_USER_ABC_CONTENT_LENGTH = 512
+MAX_USER_SONGS = 127
 
 
 class QualityRating(Enum):
@@ -35,6 +37,30 @@ class TuneRecord:
     owner: str | None      # Who owns/submitted this tune
     version: int           # Version number for tracking changes
     abc_content: str       # The ABC notation content
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass
+class UserRecord:
+    """A user record from the database."""
+    id: int
+    google_id: str
+    email: str
+    name: str | None
+    picture_url: str | None
+    created_at: datetime
+    last_login: datetime
+
+
+@dataclass
+class UserSongRecord:
+    """A user's saved song record."""
+    id: int
+    user_id: int
+    title: str
+    notes: str | None
+    abc_content: str
     created_at: datetime
     updated_at: datetime
 
@@ -114,6 +140,36 @@ def init_db() -> None:
         # Create index on quality for filtering
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_tunes_quality ON tunes(quality)
+        """)
+
+        # User accounts table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                google_id TEXT UNIQUE NOT NULL,
+                email TEXT NOT NULL,
+                name TEXT,
+                picture_url TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # User saved songs table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_songs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                notes TEXT,
+                abc_content TEXT NOT NULL CHECK(length(abc_content) <= 512),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_user_songs_user_id ON user_songs(user_id)
         """)
 
         conn.commit()
@@ -478,6 +534,144 @@ def sync_from_files(tunes_dir: Path | None = None) -> dict[str, str]:
             results[tune_id] = 'inserted'
 
     return results
+
+
+def _row_to_user(row: sqlite3.Row) -> UserRecord:
+    """Convert a database row to a UserRecord."""
+    return UserRecord(
+        id=row['id'],
+        google_id=row['google_id'],
+        email=row['email'],
+        name=row['name'],
+        picture_url=row['picture_url'],
+        created_at=datetime.fromisoformat(row['created_at']),
+        last_login=datetime.fromisoformat(row['last_login']),
+    )
+
+
+def _row_to_user_song(row: sqlite3.Row) -> UserSongRecord:
+    """Convert a database row to a UserSongRecord."""
+    return UserSongRecord(
+        id=row['id'],
+        user_id=row['user_id'],
+        title=row['title'],
+        notes=row['notes'],
+        abc_content=row['abc_content'],
+        created_at=datetime.fromisoformat(row['created_at']),
+        updated_at=datetime.fromisoformat(row['updated_at']),
+    )
+
+
+def upsert_user(google_id: str, email: str, name: str | None, picture_url: str | None) -> UserRecord:
+    """Insert or update a user. Updates last_login on existing users."""
+    with get_connection() as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+        existing = conn.execute("SELECT * FROM users WHERE google_id = ?", (google_id,)).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE users SET email = ?, name = ?, picture_url = ?, last_login = CURRENT_TIMESTAMP WHERE google_id = ?",
+                (email, name, picture_url, google_id)
+            )
+            conn.commit()
+            row = conn.execute("SELECT * FROM users WHERE google_id = ?", (google_id,)).fetchone()
+        else:
+            cursor = conn.execute(
+                "INSERT INTO users (google_id, email, name, picture_url) VALUES (?, ?, ?, ?)",
+                (google_id, email, name, picture_url)
+            )
+            conn.commit()
+            row = conn.execute("SELECT * FROM users WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        return _row_to_user(row)
+
+
+def get_user_by_google_id(google_id: str) -> UserRecord | None:
+    """Get a user by their Google ID."""
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM users WHERE google_id = ?", (google_id,)).fetchone()
+        return _row_to_user(row) if row else None
+
+
+def get_user_songs(user_id: int) -> list[UserSongRecord]:
+    """Get all songs for a user."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM user_songs WHERE user_id = ? ORDER BY updated_at DESC",
+            (user_id,)
+        ).fetchall()
+        return [_row_to_user_song(row) for row in rows]
+
+
+def get_user_song(song_id: int, user_id: int) -> UserSongRecord | None:
+    """Get a specific song belonging to a user."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM user_songs WHERE id = ? AND user_id = ?",
+            (song_id, user_id)
+        ).fetchone()
+        return _row_to_user_song(row) if row else None
+
+
+def insert_user_song(user_id: int, title: str, notes: str | None, abc_content: str) -> UserSongRecord:
+    """Insert a new user song. Enforces 127 song limit and 512 char ABC limit."""
+    if len(abc_content) > MAX_USER_ABC_CONTENT_LENGTH:
+        raise ValueError(f"ABC content exceeds {MAX_USER_ABC_CONTENT_LENGTH} characters")
+    with get_connection() as conn:
+        count = conn.execute(
+            "SELECT COUNT(*) as cnt FROM user_songs WHERE user_id = ?", (user_id,)
+        ).fetchone()['cnt']
+        if count >= MAX_USER_SONGS:
+            raise ValueError(f"Maximum of {MAX_USER_SONGS} saved songs reached")
+        cursor = conn.execute(
+            "INSERT INTO user_songs (user_id, title, notes, abc_content) VALUES (?, ?, ?, ?)",
+            (user_id, title, notes, abc_content)
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM user_songs WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        return _row_to_user_song(row)
+
+
+def update_user_song(
+    song_id: int, user_id: int,
+    title: str | None = None, notes: str | None = None, abc_content: str | None = None
+) -> UserSongRecord | None:
+    """Update a user's song. Returns None if not found."""
+    if abc_content is not None and len(abc_content) > MAX_USER_ABC_CONTENT_LENGTH:
+        raise ValueError(f"ABC content exceeds {MAX_USER_ABC_CONTENT_LENGTH} characters")
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM user_songs WHERE id = ? AND user_id = ?", (song_id, user_id)
+        ).fetchone()
+        if not row:
+            return None
+        updates = ["updated_at = CURRENT_TIMESTAMP"]
+        params: list = []
+        if title is not None:
+            updates.append("title = ?")
+            params.append(title)
+        if notes is not None:
+            updates.append("notes = ?")
+            params.append(notes)
+        if abc_content is not None:
+            updates.append("abc_content = ?")
+            params.append(abc_content)
+        params.extend([song_id, user_id])
+        conn.execute(
+            f"UPDATE user_songs SET {', '.join(updates)} WHERE id = ? AND user_id = ?",
+            params
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM user_songs WHERE id = ?", (song_id,)).fetchone()
+        return _row_to_user_song(row)
+
+
+def delete_user_song(song_id: int, user_id: int) -> bool:
+    """Delete a user's song. Returns True if deleted."""
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "DELETE FROM user_songs WHERE id = ? AND user_id = ?", (song_id, user_id)
+        )
+        conn.commit()
+        return cursor.rowcount > 0
 
 
 def print_tunes_table() -> None:
