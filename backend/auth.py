@@ -74,7 +74,9 @@ def require_user(user: UserRecord | None = Depends(get_current_user)) -> UserRec
 
 @auth_router.get("/auth/login")
 async def login(request: Request):
-    redirect_uri = str(request.url_for("auth_callback"))
+    redirect_uri = os.environ.get("OAUTH_REDIRECT_URI")
+    if not redirect_uri:
+        redirect_uri = str(request.url_for("auth_callback"))
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
