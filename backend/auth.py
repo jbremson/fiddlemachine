@@ -82,6 +82,18 @@ def require_user(user: UserRecord | None = Depends(get_current_user)) -> UserRec
 
 # --- OAuth endpoints ---
 
+@auth_router.get("/auth/debug")
+async def debug_auth():
+    client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
+    return {
+        "client_id_set": bool(client_id),
+        "client_id_prefix": client_id[:12] + "..." if len(client_id) > 12 else "(empty)",
+        "client_secret_set": bool(os.environ.get("GOOGLE_CLIENT_SECRET", "")),
+        "jwt_secret_set": bool(os.environ.get("JWT_SECRET", "")),
+        "redirect_uri": os.environ.get("OAUTH_REDIRECT_URI", "(not set)"),
+    }
+
+
 @auth_router.get("/auth/login")
 async def login(request: Request):
     _ensure_oauth()
