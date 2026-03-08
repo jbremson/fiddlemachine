@@ -9,7 +9,7 @@ import { RepeatSelector } from './RepeatSelector';
 import { LoopButton } from './LoopButton';
 import { SettingsPanel } from './SettingsPanel';
 import { Tune, TuneInfo, PlaybackState, SetDetail, SetSummary } from '../types/tune';
-import { SynthType } from '../audio/synth';
+import { SynthType, getSynthTypes } from '../audio/synth';
 import { useAuth } from '../context/AuthContext';
 
 interface PlayerViewProps {
@@ -97,10 +97,18 @@ export function PlayerView({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // Add to Set state
+  // Add to Set dialog state
   const [showAddToSet, setShowAddToSet] = useState(false);
   const [userSets, setUserSets] = useState<SetSummary[]>([]);
   const [addToSetSuccess, setAddToSetSuccess] = useState<string | null>(null);
+  const [addToSetSelectedId, setAddToSetSelectedId] = useState<number | null>(null);
+  const [addToSetBpm, setAddToSetBpm] = useState(bpm);
+  const [addToSetTranspose, setAddToSetTranspose] = useState(transpose);
+  const [addToSetOctave, setAddToSetOctave] = useState(octaveShift);
+  const [addToSetSynth, setAddToSetSynth] = useState<SynthType>(synthType);
+  const [addToSetMetronome, setAddToSetMetronome] = useState(metronomeEnabled);
+  const [addToSetCountOff, setAddToSetCountOff] = useState(countOffEnabled);
+  const [addToSetSubmitting, setAddToSetSubmitting] = useState(false);
 
   const fetchNextTag = useCallback(async (name: string) => {
     if (!name.trim()) { setSaveTag('v1'); return; }
@@ -341,133 +349,108 @@ export function PlayerView({
           )}
         </div>
 
+        <div className="tune-actions-bar">
+          <button
+            className="action-btn save-action"
+            disabled={!isLoggedIn || showSaveForm}
+            title={!isLoggedIn ? 'Login required' : 'Save song'}
+            onClick={handleOpenSaveForm}
+          >
+            Save
+          </button>
+          <button
+            className="action-btn"
+            disabled={!isLoggedIn}
+            title={!isLoggedIn ? 'Login required' : 'Add to set'}
+            onClick={async () => {
+              setAddToSetSuccess(null);
+              setAddToSetBpm(bpm);
+              setAddToSetTranspose(transpose);
+              setAddToSetOctave(octaveShift);
+              setAddToSetSynth(synthType);
+              setAddToSetMetronome(metronomeEnabled);
+              setAddToSetCountOff(countOffEnabled);
+              setAddToSetSelectedId(null);
+              setAddToSetSubmitting(false);
+              setShowAddToSet(true);
+              const res = await fetch('/api/sets');
+              if (res.ok) {
+                const sets = await res.json();
+                setUserSets(sets);
+                if (sets.length > 0) setAddToSetSelectedId(sets[0].id);
+              }
+            }}
+          >
+            Add to Set
+          </button>
+          <button
+            className="action-btn"
+            onClick={() => {
+              setAbcText(tune.abc);
+              setShowAbcEditor(!showAbcEditor);
+            }}
+          >
+            {showAbcEditor ? 'Hide ABC' : 'Edit ABC'}
+          </button>
+        </div>
+
+        {saveSuccess && <div className="save-success" style={{ textAlign: 'center' }}>Song saved!</div>}
+        {addToSetSuccess && <div className="save-success" style={{ textAlign: 'center' }}>{addToSetSuccess}</div>}
+
         <NotationView
           tune={tune}
           transpose={transpose}
         />
 
-        <div className="edit-abc-section">
-          <div className="edit-abc-actions">
-            <button
-              className="edit-abc-link"
-              onClick={() => {
-                setAbcText(tune.abc);
-                setShowAbcEditor(!showAbcEditor);
-              }}
-            >
-              {showAbcEditor ? 'Hide ABC' : 'Edit ABC'}
-            </button>
-            {isLoggedIn && !showSaveForm && (
-              <button
-                className="edit-abc-link player-save-btn"
-                onClick={handleOpenSaveForm}
-              >
-                Save
+        {showSaveForm && (
+          <div className="save-form">
+            <div className="save-form-row">
+              <input
+                type="text"
+                placeholder="Name"
+                value={saveName}
+                onChange={(e) => handleSaveNameChange(e.target.value)}
+              />
+              <input
+                type="text"
+                placeholder="Tag"
+                value={saveTag}
+                onChange={(e) => setSaveTag(e.target.value)}
+                style={{ maxWidth: '80px' }}
+              />
+            </div>
+            <textarea
+              placeholder="Notes (optional)"
+              value={saveNotes}
+              onChange={(e) => setSaveNotes(e.target.value)}
+              rows={2}
+            />
+            {saveError && <div className="save-error">{saveError}</div>}
+            <div className="save-form-actions">
+              <button onClick={handleSaveSong} disabled={!saveName.trim() || !saveTag.trim() || isSaving}>
+                {isSaving ? 'Saving...' : 'Save Song'}
               </button>
-            )}
-            {isLoggedIn && (
-              <button
-                className="edit-abc-link"
-                onClick={async () => {
-                  setShowAddToSet(!showAddToSet);
-                  setAddToSetSuccess(null);
-                  if (!showAddToSet) {
-                    const res = await fetch('/api/sets');
-                    if (res.ok) setUserSets(await res.json());
-                  }
-                }}
-              >
-                Add to Set
-              </button>
-            )}
+              <button className="cancel-btn" onClick={() => setShowSaveForm(false)}>Cancel</button>
+            </div>
           </div>
-          {saveSuccess && <div className="save-success">Song saved!</div>}
-          {addToSetSuccess && <div className="save-success">{addToSetSuccess}</div>}
-          {showAddToSet && (
-            <div className="add-to-set-dropdown">
-              {userSets.length === 0 ? (
-                <p className="empty">No sets. Create one from the tune list.</p>
-              ) : (
-                <ul>
-                  {userSets.map(s => (
-                    <li key={s.id}>
-                      <button onClick={async () => {
-                        // Determine tune_source and tune_ref
-                        const isLibrary = !tune.id.startsWith('song_') && tune.id !== 'pasted';
-                        const tuneSource = isLibrary ? 'library' : 'user_song';
-                        const tuneRef = isLibrary ? tune.id : tune.id.replace('song_', '');
-                        const res = await fetch(`/api/sets/${s.id}/items`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            tune_source: tuneSource,
-                            tune_ref: tuneRef,
-                            tune_title: tune.title,
-                          }),
-                        });
-                        if (res.ok) {
-                          setAddToSetSuccess(`Added to "${s.name}"`);
-                          setShowAddToSet(false);
-                        }
-                      }}>
-                        {s.name} <span className="set-item-count">({s.item_count})</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-          {showSaveForm && (
-            <div className="save-form">
-              <div className="save-form-row">
-                <input
-                  type="text"
-                  placeholder="Name"
-                  value={saveName}
-                  onChange={(e) => handleSaveNameChange(e.target.value)}
-                />
-                <input
-                  type="text"
-                  placeholder="Tag"
-                  value={saveTag}
-                  onChange={(e) => setSaveTag(e.target.value)}
-                  style={{ maxWidth: '80px' }}
-                />
-              </div>
-              <textarea
-                placeholder="Notes (optional)"
-                value={saveNotes}
-                onChange={(e) => setSaveNotes(e.target.value)}
-                rows={2}
-              />
-              {saveError && <div className="save-error">{saveError}</div>}
-              <div className="save-form-actions">
-                <button onClick={handleSaveSong} disabled={!saveName.trim() || !saveTag.trim() || isSaving}>
-                  {isSaving ? 'Saving...' : 'Save Song'}
-                </button>
-                <button className="cancel-btn" onClick={() => setShowSaveForm(false)}>Cancel</button>
-              </div>
-            </div>
-          )}
+        )}
 
-          {showAbcEditor && (
-            <div className="abc-editor" ref={abcEditorRef}>
-              <textarea
-                value={abcText}
-                onChange={(e) => setAbcText(e.target.value)}
-                rows={12}
-                spellCheck={false}
-              />
-              <button
-                className="reload-abc-btn"
-                onClick={() => onReloadAbc(abcText)}
-              >
-                Reload
-              </button>
-            </div>
-          )}
-        </div>
+        {showAbcEditor && (
+          <div className="abc-editor" ref={abcEditorRef}>
+            <textarea
+              value={abcText}
+              onChange={(e) => setAbcText(e.target.value)}
+              rows={12}
+              spellCheck={false}
+            />
+            <button
+              className="reload-abc-btn"
+              onClick={() => onReloadAbc(abcText)}
+            >
+              Reload
+            </button>
+          </div>
+        )}
 
         <div className="debug-section">
           <button
@@ -644,6 +627,139 @@ export function PlayerView({
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {showAddToSet && (
+        <div className="add-to-set-overlay" onClick={() => setShowAddToSet(false)}>
+          <div className="add-to-set-popup" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="about-close"
+              onClick={() => setShowAddToSet(false)}
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <h2>Add to Set</h2>
+            {userSets.length === 0 ? (
+              <p className="empty">No sets yet. Create one from the tune list.</p>
+            ) : (
+              <div className="add-to-set-form">
+                <div className="add-to-set-field">
+                  <label>Set</label>
+                  <select
+                    value={addToSetSelectedId ?? ''}
+                    onChange={(e) => setAddToSetSelectedId(Number(e.target.value))}
+                  >
+                    {userSets.map(s => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.item_count})</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="add-to-set-field">
+                  <label>BPM</label>
+                  <input
+                    type="number"
+                    value={addToSetBpm}
+                    onChange={(e) => setAddToSetBpm(Number(e.target.value))}
+                    min={30}
+                    max={300}
+                  />
+                </div>
+                <div className="add-to-set-field">
+                  <label>Transpose</label>
+                  <select
+                    value={addToSetTranspose}
+                    onChange={(e) => setAddToSetTranspose(Number(e.target.value))}
+                  >
+                    {[-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6].map(t => (
+                      <option key={t} value={t}>
+                        {t === 0 ? 'Original' : `${t > 0 ? '+' : ''}${t} semitones`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="add-to-set-field">
+                  <label>Octave Shift</label>
+                  <input
+                    type="number"
+                    value={addToSetOctave}
+                    onChange={(e) => setAddToSetOctave(Number(e.target.value))}
+                    min={-3}
+                    max={3}
+                  />
+                </div>
+                <div className="add-to-set-field">
+                  <label>Synth</label>
+                  <select
+                    value={addToSetSynth}
+                    onChange={(e) => setAddToSetSynth(e.target.value as SynthType)}
+                  >
+                    {getSynthTypes().map(st => (
+                      <option key={st.value} value={st.value}>{st.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="add-to-set-field">
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={addToSetMetronome}
+                      onChange={(e) => setAddToSetMetronome(e.target.checked)}
+                    />
+                    Metronome
+                  </label>
+                </div>
+                <div className="add-to-set-field">
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={addToSetCountOff}
+                      onChange={(e) => setAddToSetCountOff(e.target.checked)}
+                    />
+                    Count-off
+                  </label>
+                </div>
+                <div className="add-to-set-actions">
+                  <button className="cancel-btn" onClick={() => setShowAddToSet(false)}>Cancel</button>
+                  <button
+                    className="add-btn"
+                    disabled={!addToSetSelectedId || addToSetSubmitting}
+                    onClick={async () => {
+                      if (!addToSetSelectedId) return;
+                      setAddToSetSubmitting(true);
+                      const isLibrary = !tune.id.startsWith('song_') && tune.id !== 'pasted';
+                      const tuneSource = isLibrary ? 'library' : 'user_song';
+                      const tuneRef = isLibrary ? tune.id : tune.id.replace('song_', '');
+                      const res = await fetch(`/api/sets/${addToSetSelectedId}/items`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          tune_source: tuneSource,
+                          tune_ref: tuneRef,
+                          tune_title: tune.title,
+                          bpm: addToSetBpm,
+                          transpose: addToSetTranspose,
+                          octave_shift: addToSetOctave,
+                          synth_type: addToSetSynth,
+                          metronome_enabled: addToSetMetronome,
+                          count_off_enabled: addToSetCountOff,
+                        }),
+                      });
+                      setAddToSetSubmitting(false);
+                      if (res.ok) {
+                        const setName = userSets.find(s => s.id === addToSetSelectedId)?.name || 'set';
+                        setAddToSetSuccess(`Added to "${setName}"`);
+                        setShowAddToSet(false);
+                      }
+                    }}
+                  >
+                    {addToSetSubmitting ? 'Adding...' : 'Add'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
