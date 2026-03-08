@@ -35,11 +35,11 @@ app = FastAPI(
     version="2.0.1"
 )
 
-# Proxy headers middleware — must be outermost to fix scheme before authlib sees it
-app.add_middleware(ProxyHeadersMiddleware)
-
-# Session middleware required by authlib OAuth flow
+# Session middleware required by authlib OAuth flow (added first so it's inner)
 app.add_middleware(SessionMiddleware, secret_key=os.environ.get("JWT_SECRET", "dev-secret-change-me"), same_site="lax", https_only=False)
+
+# Proxy headers middleware — added last so it's outermost, runs first
+app.add_middleware(ProxyHeadersMiddleware)
 
 # Include API routes
 app.include_router(router)
