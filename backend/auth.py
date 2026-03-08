@@ -117,13 +117,7 @@ async def login(request: Request):
 async def auth_callback(request: Request):
     try:
         _ensure_oauth()
-        # Build the same redirect_uri used in the login step
-        redirect_uri = os.environ.get("OAUTH_REDIRECT_URI")
-        if not redirect_uri:
-            redirect_uri = str(request.url_for("auth_callback"))
-            if redirect_uri.startswith("http://") and "localhost" not in redirect_uri:
-                redirect_uri = redirect_uri.replace("http://", "https://", 1)
-        token = await oauth.google.authorize_access_token(request, redirect_uri=redirect_uri)
+        token = await oauth.google.authorize_access_token(request)
         userinfo = token.get("userinfo")
         if not userinfo:
             raise HTTPException(status_code=400, detail="Failed to get user info from Google")
