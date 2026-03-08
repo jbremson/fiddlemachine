@@ -85,12 +85,15 @@ def require_user(user: UserRecord | None = Depends(get_current_user)) -> UserRec
 @auth_router.get("/auth/debug")
 async def debug_auth():
     client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
+    redirect = os.environ.get("OAUTH_REDIRECT_URI", "")
     return {
         "client_id_set": bool(client_id),
         "client_id_prefix": client_id[:12] + "..." if len(client_id) > 12 else "(empty)",
         "client_secret_set": bool(os.environ.get("GOOGLE_CLIENT_SECRET", "")),
         "jwt_secret_set": bool(os.environ.get("JWT_SECRET", "")),
-        "redirect_uri": os.environ.get("OAUTH_REDIRECT_URI", "(not set)"),
+        "redirect_uri": redirect or "(not set)",
+        "redirect_uri_len": len(redirect),
+        "all_oauth_keys": [k for k in os.environ if "OAUTH" in k.upper() or "REDIRECT" in k.upper()],
     }
 
 
@@ -100,6 +103,9 @@ async def login(request: Request):
     redirect_uri = os.environ.get("OAUTH_REDIRECT_URI")
     if not redirect_uri:
         redirect_uri = str(request.url_for("auth_callback"))
+        # Behind a reverse proxy, force https
+        if redirect_uri.startswith("http://") and "localhost" not in redirect_uri:
+            redirect_uri = redirect_uri.replace("http://", "https://", 1)
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
