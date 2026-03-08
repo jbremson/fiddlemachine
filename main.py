@@ -8,16 +8,35 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware import Middleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 import os
 
 from backend.api import router
 from backend.auth import auth_router
+
+
+class ProxyHeadersMiddleware:
+    """Force HTTPS scheme when behind a reverse proxy."""
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope["type"] in ("http", "websocket"):
+            headers = dict(scope.get("headers", []))
+            if headers.get(b"x-forwarded-proto") == b"https":
+                scope["scheme"] = "https"
+        await self.app(scope, receive, send)
+
 
 app = FastAPI(
     title="FiddleMachine",
     description="Learn fiddle tunes by ear",
     version="2.0.1"
 )
+
+# Proxy headers middleware — must be outermost to fix scheme before authlib sees it
+app.add_middleware(ProxyHeadersMiddleware)
 
 # Session middleware required by authlib OAuth flow
 app.add_middleware(SessionMiddleware, secret_key=os.environ.get("JWT_SECRET", "dev-secret-change-me"))
