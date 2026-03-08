@@ -1,7 +1,11 @@
 """Google OAuth authentication and user song endpoints."""
 
+import logging
 import os
+import traceback
 from datetime import datetime, timedelta, timezone
+
+logger = logging.getLogger(__name__)
 
 import jwt
 from authlib.integrations.starlette_client import OAuth
@@ -111,30 +115,36 @@ async def login(request: Request):
 
 @auth_router.get("/auth/callback", name="auth_callback")
 async def auth_callback(request: Request):
-    _ensure_oauth()
-    token = await oauth.google.authorize_access_token(request)
-    userinfo = token.get("userinfo")
-    if not userinfo:
-        raise HTTPException(status_code=400, detail="Failed to get user info from Google")
+    try:
+        _ensure_oauth()
+        token = await oauth.google.authorize_access_token(request)
+        userinfo = token.get("userinfo")
+        if not userinfo:
+            raise HTTPException(status_code=400, detail="Failed to get user info from Google")
 
-    user = upsert_user(
-        google_id=userinfo["sub"],
-        email=userinfo["email"],
-        name=userinfo.get("name"),
-        picture_url=userinfo.get("picture"),
-    )
+        user = upsert_user(
+            google_id=userinfo["sub"],
+            email=userinfo["email"],
+            name=userinfo.get("name"),
+            picture_url=userinfo.get("picture"),
+        )
 
-    jwt_token = _create_jwt(user.google_id)
-    response = RedirectResponse(url="/")
-    response.set_cookie(
-        key=COOKIE_NAME,
-        value=jwt_token,
-        httponly=True,
-        samesite="lax",
-        max_age=JWT_EXPIRY_DAYS * 86400,
-        secure=False,  # Set to True in production with HTTPS
-    )
-    return response
+        jwt_token = _create_jwt(user.google_id)
+        response = RedirectResponse(url="/")
+        response.set_cookie(
+            key=COOKIE_NAME,
+            value=jwt_token,
+            httponly=True,
+            samesite="lax",
+            max_age=JWT_EXPIRY_DAYS * 86400,
+            secure=False,
+        )
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"OAuth callback error: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Auth error: {e}")
 
 
 @auth_router.get("/auth/me")
