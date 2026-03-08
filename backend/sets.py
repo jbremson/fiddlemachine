@@ -135,6 +135,9 @@ async def add_item(set_id: int, body: SetItemCreate, user: UserRecord = Depends(
     s = get_set(set_id, user.id)
     if not s:
         raise HTTPException(status_code=404, detail="Set not found")
+    count = get_set_item_count(set_id)
+    if count >= 99:
+        raise HTTPException(status_code=400, detail="Set is full (max 99 items)")
     try:
         item = insert_set_item(
             set_id,

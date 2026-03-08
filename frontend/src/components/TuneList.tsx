@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { TuneSummary, SetSummary, SetDetail, SetItem } from '../types/tune';
 import { useAuth } from '../context/AuthContext';
 
@@ -27,7 +27,6 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
   const { user, isLoggedIn, login, logout } = useAuth();
 
   // My Songs state
-  const [mySongsExpanded, setMySongsExpanded] = useState(false);
   const [mySongs, setMySongs] = useState<Array<{ id: number; title: string; notes: string | null; abc_content: string; updated_at: string }>>([]);
   const [mySongsLoading, setMySongsLoading] = useState(false);
 
@@ -42,6 +41,13 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
   const [tuneSearchQuery, setTuneSearchQuery] = useState('');
   const [tuneSearchResults, setTuneSearchResults] = useState<Array<{ id: string; title: string; source: 'library' | 'user_song' }>>([]);
 
+  // Drag-and-drop state
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const touchCurrentIndex = useRef<number | null>(null);
+  const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -52,9 +58,9 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch my songs when expanded and logged in, or when set editor needs them
+  // Fetch my songs when library is expanded or set editor is open
   useEffect(() => {
-    if (isLoggedIn && (mySongsExpanded || showSetEditor)) {
+    if (isLoggedIn && (libraryExpanded || showSetEditor)) {
       setMySongsLoading(true);
       fetch('/api/songs')
         .then(res => res.ok ? res.json() : [])
@@ -62,18 +68,13 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
         .catch(() => setMySongs([]))
         .finally(() => setMySongsLoading(false));
     }
-  }, [isLoggedIn, mySongsExpanded, showSetEditor]);
+  }, [isLoggedIn, libraryExpanded, showSetEditor]);
 
   const handleDeleteSong = async (songId: number) => {
     const res = await fetch(`/api/songs/${songId}`, { method: 'DELETE' });
     if (res.ok) {
       setMySongs(prev => prev.filter(s => s.id !== songId));
     }
-  };
-
-  const handleLoadSavedSong = (song: { abc_content: string }) => {
-    setAbcInput(song.abc_content);
-    onLoadFromAbc(song.abc_content);
   };
 
   // Fetch my sets when expanded and logged in
@@ -126,14 +127,6 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
     }
   };
 
-  const handlePlaySetClick = async (setId: number) => {
-    const res = await fetch(`/api/sets/${setId}`);
-    if (res.ok) {
-      const detail: SetDetail = await res.json();
-      onPlaySet(detail);
-    }
-  };
-
   const handleTuneSearch = async (query: string) => {
     setTuneSearchQuery(query);
     if (!query.trim()) { setTuneSearchResults([]); return; }
@@ -179,24 +172,103 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
     }
   };
 
+  // Drag-and-drop reorder
+  const handleDragReorder = useCallback(async (fromIndex: number, toIndex: number) => {
+    if (!editingSet || fromIndex === toIndex) return;
+    const items = [...editingSet.items];
+    const [moved] = items.splice(fromIndex, 1);
+    items.splice(toIndex, 0, moved);
+    const reordered = items.map((item, idx) => ({ ...item, position: idx }));
+    setEditingSet(prev => prev ? { ...prev, items: reordered } : null);
+
+    await fetch(`/api/sets/${editingSet.id}/reorder`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_ids: reordered.map(i => i.id) }),
+    });
+  }, [editingSet]);
+
+  const handleDragStart = (index: number) => {
+    setDragIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    setDragOverIndex(index);
+  };
+
+  const handleDrop = (e: React.DragEvent, toIndex: number) => {
+    e.preventDefault();
+    if (dragIndex !== null) {
+      handleDragReorder(dragIndex, toIndex);
+    }
+    setDragIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDragIndex(null);
+    setDragOverIndex(null);
+  };
+
+  // Touch drag support
+  const handleTouchStart = (e: React.TouchEvent, index: number) => {
+    touchStartY.current = e.touches[0].clientY;
+    touchCurrentIndex.current = index;
+    setDragIndex(index);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartY.current === null || !editingSet) return;
+    const touchY = e.touches[0].clientY;
+    // Find which item we're over
+    for (let i = 0; i < itemRefs.current.length; i++) {
+      const el = itemRefs.current[i];
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        if (touchY >= rect.top && touchY <= rect.bottom) {
+          setDragOverIndex(i);
+          break;
+        }
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (dragIndex !== null && dragOverIndex !== null && dragIndex !== dragOverIndex) {
+      handleDragReorder(dragIndex, dragOverIndex);
+    }
+    setDragIndex(null);
+    setDragOverIndex(null);
+    touchStartY.current = null;
+    touchCurrentIndex.current = null;
+  };
+
   const filteredSets = mySets.filter(s =>
     s.name.toLowerCase().includes(setsSearchQuery.toLowerCase())
   );
 
-  // Sort tunes alphabetically and filter by search query
-  const filteredTunes = tunes
-    .filter(tune =>
-      tune.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      tune.key.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-    .sort((a, b) => a.title.localeCompare(b.title));
+  // Build unified library list: merge library tunes + user songs
+  type LibraryItem = { id: string; title: string; key: string; isSaved: boolean; abc_content?: string; songId?: number };
 
-  const handleKeyDown = (e: React.KeyboardEvent, tuneId: string) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onSelectTune(tuneId);
-    }
-  };
+  const unifiedLibrary: LibraryItem[] = (() => {
+    const libraryItems: LibraryItem[] = tunes.map(t => ({
+      id: t.id, title: t.title, key: t.key, isSaved: false,
+    }));
+    const savedItems: LibraryItem[] = mySongs.map(s => ({
+      id: `song_${s.id}`, title: s.title, key: 'Saved', isSaved: true, abc_content: s.abc_content, songId: s.id,
+    }));
+    const all = [...libraryItems, ...savedItems];
+    const q = searchQuery.toLowerCase();
+    return all
+      .filter(item =>
+        item.title.toLowerCase().includes(q) ||
+        item.key.toLowerCase().includes(q)
+      )
+      .sort((a, b) => a.title.localeCompare(b.title));
+  })();
+
+  const totalCount = tunes.length + (isLoggedIn ? mySongs.length : 0);
 
   const handleUrlSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,6 +291,15 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
       setIsLoadingAbc(true);
       onLoadFromAbc(abcInput.trim());
       setTimeout(() => setIsLoadingAbc(false), 2000);
+    }
+  };
+
+  const handleLibraryItemClick = (item: LibraryItem) => {
+    if (item.isSaved && item.abc_content) {
+      setAbcInput(item.abc_content);
+      onLoadFromAbc(item.abc_content);
+    } else {
+      onSelectTune(item.id);
     }
   };
 
@@ -327,53 +408,6 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
         </div>
 
         {isLoggedIn && (
-          <div className="library-section my-songs-section">
-            <button
-              className="library-header"
-              onClick={() => setMySongsExpanded(!mySongsExpanded)}
-              aria-expanded={mySongsExpanded}
-            >
-              <span className="library-title">My Songs</span>
-              {mySongs.length > 0 && <span className="library-count">{mySongs.length} songs</span>}
-              <span className="library-toggle">{mySongsExpanded ? '▼' : '▶'}</span>
-            </button>
-
-            {mySongsExpanded && (
-              mySongsLoading ? (
-                <p className="loading">Loading songs...</p>
-              ) : mySongs.length === 0 ? (
-                <p className="empty">No saved songs yet</p>
-              ) : (
-                <ul className="tune-list-compact" role="listbox" aria-label="My saved songs">
-                  {mySongs.map((song) => (
-                    <li key={song.id} className="tune-item-compact my-song-item">
-                      <span
-                        className="tune-item-title"
-                        onClick={() => handleLoadSavedSong(song)}
-                        role="option"
-                        aria-selected={false}
-                        tabIndex={0}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleLoadSavedSong(song); }}
-                      >
-                        {song.title}
-                      </span>
-                      <button
-                        className="delete-song-btn"
-                        onClick={() => handleDeleteSong(song.id)}
-                        aria-label={`Delete ${song.title}`}
-                        title="Delete song"
-                      >
-                        ×
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )
-            )}
-          </div>
-        )}
-
-        {isLoggedIn && (
           <div className="library-section my-sets-section">
             <button
               className="library-header"
@@ -418,11 +452,11 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
                         <li key={s.id} className="tune-item-compact set-item">
                           <span
                             className="tune-item-title"
-                            onClick={() => handlePlaySetClick(s.id)}
+                            onClick={() => handleOpenSetEditor(s.id)}
                             role="option"
                             aria-selected={false}
                             tabIndex={0}
-                            onKeyDown={(e) => { if (e.key === 'Enter') handlePlaySetClick(s.id); }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleOpenSetEditor(s.id); }}
                           >
                             {s.name}
                           </span>
@@ -460,14 +494,14 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
             aria-expanded={libraryExpanded}
           >
             <span className="library-title">Library</span>
-            {tunes.length > 0 && <span className="library-count">{tunes.length} tunes</span>}
+            {totalCount > 0 && <span className="library-count">{totalCount} tunes</span>}
             <span className="library-toggle">{libraryExpanded ? '▼' : '▶'}</span>
           </button>
 
           {libraryExpanded && (
-            loading ? (
+            loading || mySongsLoading ? (
               <p className="loading">Loading tunes...</p>
-            ) : tunes.length === 0 ? (
+            ) : totalCount === 0 ? (
               <p className="empty">No tunes available</p>
             ) : (
               <>
@@ -481,26 +515,45 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
                   />
                   {searchQuery && (
                     <span className="search-count">
-                      {filteredTunes.length} of {tunes.length}
+                      {unifiedLibrary.length} of {totalCount}
                     </span>
                   )}
                 </div>
                 <ul className="tune-list-compact" role="listbox" aria-label="Available tunes">
-                  {filteredTunes.map((tune) => (
+                  {unifiedLibrary.map((item) => (
                     <li
-                      key={tune.id}
+                      key={item.id}
                       role="option"
                       aria-selected={false}
                       className="tune-item-compact"
-                      onClick={() => onSelectTune(tune.id)}
-                      onKeyDown={(e) => handleKeyDown(e, tune.id)}
+                      onClick={() => handleLibraryItemClick(item)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleLibraryItemClick(item);
+                        }
+                      }}
                       tabIndex={0}
                     >
-                      <span className="tune-item-title">{tune.title}</span>
-                      <span className="tune-item-key">{tune.key}</span>
+                      <span className="tune-item-title">{item.title}</span>
+                      {item.isSaved ? (
+                        <>
+                          <span className="set-source-tag">saved</span>
+                          <button
+                            className="delete-song-btn"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteSong(item.songId!); }}
+                            aria-label={`Delete ${item.title}`}
+                            title="Delete song"
+                          >
+                            ×
+                          </button>
+                        </>
+                      ) : (
+                        <span className="tune-item-key">{item.key}</span>
+                      )}
                     </li>
                   ))}
-                  {filteredTunes.length === 0 && (
+                  {unifiedLibrary.length === 0 && (
                     <li className="tune-item-empty">No tunes match "{searchQuery}"</li>
                   )}
                 </ul>
@@ -588,11 +641,15 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
             <div className="set-tune-search">
               <input
                 type="text"
-                placeholder="Search tunes to add..."
+                placeholder={editingSet.items.length >= 99 ? "Set is full (99/99 max)" : "Search tunes to add..."}
                 value={tuneSearchQuery}
                 onChange={(e) => handleTuneSearch(e.target.value)}
+                disabled={editingSet.items.length >= 99}
                 autoFocus
               />
+              {editingSet.items.length >= 99 && (
+                <span className="search-count">99/99 max</span>
+              )}
               {tuneSearchResults.length > 0 && (
                 <ul className="set-search-results">
                   {tuneSearchResults.map((result) => (
@@ -612,8 +669,21 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
                 <p className="empty">No tunes in this set yet. Search above to add tunes.</p>
               ) : (
                 <ol>
-                  {editingSet.items.map((item) => (
-                    <li key={item.id} className="set-item-row">
+                  {editingSet.items.map((item, index) => (
+                    <li
+                      key={item.id}
+                      className={`set-item-row${dragIndex === index ? ' dragging' : ''}${dragOverIndex === index ? ' drag-over' : ''}`}
+                      draggable
+                      onDragStart={() => handleDragStart(index)}
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDrop={(e) => handleDrop(e, index)}
+                      onDragEnd={handleDragEnd}
+                      onTouchStart={(e) => handleTouchStart(e, index)}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={handleTouchEnd}
+                      ref={(el) => { itemRefs.current[index] = el; }}
+                    >
+                      <span className="drag-handle" aria-label="Drag to reorder">⋮⋮</span>
                       <span className="set-item-title">{item.tune_title}</span>
                       {item.tune_source === 'user_song' && <span className="set-source-tag">saved</span>}
                       <button
@@ -629,6 +699,13 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
                 </ol>
               )}
             </div>
+            <button
+              className="play-set-btn"
+              onClick={() => { onPlaySet(editingSet); setShowSetEditor(false); }}
+              disabled={editingSet.items.length === 0}
+            >
+              Play Set
+            </button>
           </div>
         </div>
       )}

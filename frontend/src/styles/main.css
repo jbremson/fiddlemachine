@@ -2122,6 +2122,46 @@ body {
   font-size: 0.9rem;
 }
 
+.drag-handle {
+  cursor: grab;
+  color: var(--text-muted);
+  user-select: none;
+  font-size: 0.85rem;
+  letter-spacing: -2px;
+  padding: 0 0.25rem;
+}
+
+.set-item-row.dragging {
+  opacity: 0.4;
+}
+
+.set-item-row.drag-over {
+  border-top: 2px solid var(--primary-color);
+}
+
+.play-set-btn {
+  display: block;
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.6rem 1.25rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.play-set-btn:hover:not(:disabled) {
+  background: var(--primary-light);
+}
+
+.play-set-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
 .add-to-set-dropdown {
   margin-top: 0.5rem;
   background: var(--sidebar-bg);
