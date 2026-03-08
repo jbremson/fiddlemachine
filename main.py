@@ -39,7 +39,7 @@ app = FastAPI(
 app.add_middleware(ProxyHeadersMiddleware)
 
 # Session middleware required by authlib OAuth flow
-app.add_middleware(SessionMiddleware, secret_key=os.environ.get("JWT_SECRET", "dev-secret-change-me"))
+app.add_middleware(SessionMiddleware, secret_key=os.environ.get("JWT_SECRET", "dev-secret-change-me"), same_site="lax", https_only=False)
 
 # Include API routes
 app.include_router(router)
