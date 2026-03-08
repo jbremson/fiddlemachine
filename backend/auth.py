@@ -117,6 +117,10 @@ async def login(request: Request):
 async def auth_callback(request: Request):
     try:
         _ensure_oauth()
+        # Log what authlib will use as redirect_uri
+        cb_uri = str(request.url_for("auth_callback"))
+        logger.error(f"Callback request URL scheme: {request.url.scheme}")
+        logger.error(f"Callback url_for result: {cb_uri}")
         token = await oauth.google.authorize_access_token(request)
         userinfo = token.get("userinfo")
         if not userinfo:
@@ -143,8 +147,9 @@ async def auth_callback(request: Request):
     except HTTPException:
         raise
     except Exception as e:
+        cb_uri = str(request.url_for("auth_callback"))
         logger.error(f"OAuth callback error: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Auth error: {e}")
+        raise HTTPException(status_code=500, detail=f"Auth error: {e} | scheme={request.url.scheme} | url_for={cb_uri}")
 
 
 @auth_router.get("/auth/me")
