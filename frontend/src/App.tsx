@@ -3,7 +3,7 @@ import { TuneList } from './components/TuneList';
 import { PlayerView } from './components/PlayerView';
 import { tunePlayer } from './audio/player';
 import { SynthType } from './audio/synth';
-import { Tune, TuneSummary, PlaybackState } from './types/tune';
+import { Tune, TuneSummary, PlaybackState, SetDetail, SetItem } from './types/tune';
 import './styles/main.css';
 
 export function App() {
@@ -21,6 +21,8 @@ export function App() {
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
   const [countOffEnabled, setCountOffEnabled] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeSet, setActiveSet] = useState<SetDetail | null>(null);
+  const [activeSetIndex, setActiveSetIndex] = useState(0);
 
   // Fetch tune list on mount
   useEffect(() => {
@@ -124,6 +126,8 @@ export function App() {
     tunePlayer.stop();
     setSelectedTune(null);
     setPlaybackState('stopped');
+    setActiveSet(null);
+    setActiveSetIndex(0);
   }, []);
 
   // Initialize audio on first play
@@ -214,6 +218,68 @@ export function App() {
     }
   }, [selectedTune?.id]);
 
+  // Load a set item by fetching the tune and applying stored settings
+  const loadSetItem = useCallback(async (item: SetItem) => {
+    tunePlayer.stop();
+    try {
+      let tune: Tune;
+      if (item.tune_source === 'library') {
+        const response = await fetch(`/api/tunes/${item.tune_ref}`);
+        if (!response.ok) { setError('Failed to load tune'); return; }
+        tune = await response.json();
+      } else {
+        // user_song: fetch the song's abc_content and parse it
+        const songRes = await fetch(`/api/songs/${item.tune_ref}`);
+        if (!songRes.ok) { setError('Failed to load song'); return; }
+        const songData = await songRes.json();
+        const parseRes = await fetch('/api/tunes/parse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ abc: songData.abc_content, id: `song_${item.tune_ref}` }),
+        });
+        if (!parseRes.ok) { setError('Failed to parse song'); return; }
+        tune = await parseRes.json();
+      }
+      setSelectedTune(tune);
+      tunePlayer.setTune(tune);
+
+      // Apply stored settings
+      if (item.bpm != null) { setBpm(item.bpm); tunePlayer.setBpm(item.bpm); }
+      if (item.transpose != null) { setTranspose(item.transpose); tunePlayer.setTranspose(item.transpose); }
+      else { setTranspose(0); }
+      if (item.octave_shift != null) { setOctaveShift(item.octave_shift); tunePlayer.setOctaveShift(item.octave_shift); }
+      else { setOctaveShift(0); }
+      if (item.synth_type != null) { setSynthType(item.synth_type as SynthType); tunePlayer.setSynthType(item.synth_type as SynthType); }
+      if (item.metronome_enabled != null) { setMetronomeEnabled(item.metronome_enabled); tunePlayer.setMetronome(item.metronome_enabled); }
+      if (item.count_off_enabled != null) { setCountOffEnabled(item.count_off_enabled); tunePlayer.setCountOff(item.count_off_enabled); }
+      setError(null);
+    } catch (err) {
+      console.error('Failed to load set item:', err);
+      setError('Failed to load tune from set');
+    }
+  }, []);
+
+  const handlePlaySet = useCallback(async (set: SetDetail) => {
+    if (set.items.length === 0) return;
+    setActiveSet(set);
+    setActiveSetIndex(0);
+    await loadSetItem(set.items[0]);
+  }, [loadSetItem]);
+
+  const handleNextTune = useCallback(async () => {
+    if (!activeSet || activeSetIndex >= activeSet.items.length - 1) return;
+    const newIndex = activeSetIndex + 1;
+    setActiveSetIndex(newIndex);
+    await loadSetItem(activeSet.items[newIndex]);
+  }, [activeSet, activeSetIndex, loadSetItem]);
+
+  const handlePrevTune = useCallback(async () => {
+    if (!activeSet || activeSetIndex <= 0) return;
+    const newIndex = activeSetIndex - 1;
+    setActiveSetIndex(newIndex);
+    await loadSetItem(activeSet.items[newIndex]);
+  }, [activeSet, activeSetIndex, loadSetItem]);
+
   // Show tune list if no tune is selected, otherwise show player
   if (!selectedTune) {
     return (
@@ -225,6 +291,7 @@ export function App() {
         onLoadFromUrl={handleLoadFromUrl}
         onLoadFromAbc={handleLoadFromAbc}
         onDismissError={() => setError(null)}
+        onPlaySet={handlePlaySet}
       />
     );
   }
@@ -256,6 +323,10 @@ export function App() {
       onCountOffToggle={handleCountOffToggle}
       onDismissError={() => setError(null)}
       onReloadAbc={handleReloadAbc}
+      activeSet={activeSet}
+      activeSetIndex={activeSetIndex}
+      onNextTune={handleNextTune}
+      onPrevTune={handlePrevTune}
     />
   );
 }

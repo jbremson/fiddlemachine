@@ -12,8 +12,10 @@ from typing import Iterator
 DB_PATH = Path(__file__).parent.parent / "data" / "tunes.db"
 
 MAX_ABC_CONTENT_LENGTH = 50000
-MAX_USER_ABC_CONTENT_LENGTH = 512
+MAX_USER_ABC_CONTENT_LENGTH = 1024
 MAX_USER_SONGS = 127
+MAX_USER_SETS = 50
+MAX_SET_ITEMS = 100
 
 
 class QualityRating(Enum):
@@ -63,6 +65,33 @@ class UserSongRecord:
     abc_content: str
     created_at: datetime
     updated_at: datetime
+
+
+@dataclass
+class SetRecord:
+    """A user's set (playlist) record."""
+    id: int
+    user_id: int
+    name: str
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass
+class SetItemRecord:
+    """An item in a set."""
+    id: int
+    set_id: int
+    position: int
+    tune_source: str  # 'library' or 'user_song'
+    tune_ref: str
+    tune_title: str
+    bpm: int | None
+    transpose: int | None
+    octave_shift: int | None
+    synth_type: str | None
+    metronome_enabled: bool | None
+    count_off_enabled: bool | None
 
 
 def get_db_path() -> Path:
@@ -162,7 +191,7 @@ def init_db() -> None:
                 user_id INTEGER NOT NULL,
                 title TEXT NOT NULL,
                 notes TEXT,
-                abc_content TEXT NOT NULL CHECK(length(abc_content) <= 512),
+                abc_content TEXT NOT NULL CHECK(length(abc_content) <= 1024),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -170,6 +199,43 @@ def init_db() -> None:
         """)
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_user_songs_user_id ON user_songs(user_id)
+        """)
+
+        # User sets (playlists) table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_sets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_user_sets_user_id ON user_sets(user_id)
+        """)
+
+        # Set items table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS set_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                set_id INTEGER NOT NULL,
+                position INTEGER NOT NULL,
+                tune_source TEXT NOT NULL,
+                tune_ref TEXT NOT NULL,
+                tune_title TEXT NOT NULL,
+                bpm INTEGER,
+                transpose INTEGER,
+                octave_shift INTEGER,
+                synth_type TEXT,
+                metronome_enabled BOOLEAN,
+                count_off_enabled BOOLEAN,
+                FOREIGN KEY (set_id) REFERENCES user_sets(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_set_items_set_id ON set_items(set_id)
         """)
 
         conn.commit()
@@ -672,6 +738,237 @@ def delete_user_song(song_id: int, user_id: int) -> bool:
         )
         conn.commit()
         return cursor.rowcount > 0
+
+
+def _row_to_set(row: sqlite3.Row) -> SetRecord:
+    """Convert a database row to a SetRecord."""
+    return SetRecord(
+        id=row['id'],
+        user_id=row['user_id'],
+        name=row['name'],
+        created_at=datetime.fromisoformat(row['created_at']),
+        updated_at=datetime.fromisoformat(row['updated_at']),
+    )
+
+
+def _row_to_set_item(row: sqlite3.Row) -> SetItemRecord:
+    """Convert a database row to a SetItemRecord."""
+    return SetItemRecord(
+        id=row['id'],
+        set_id=row['set_id'],
+        position=row['position'],
+        tune_source=row['tune_source'],
+        tune_ref=row['tune_ref'],
+        tune_title=row['tune_title'],
+        bpm=row['bpm'],
+        transpose=row['transpose'],
+        octave_shift=row['octave_shift'],
+        synth_type=row['synth_type'],
+        metronome_enabled=bool(row['metronome_enabled']) if row['metronome_enabled'] is not None else None,
+        count_off_enabled=bool(row['count_off_enabled']) if row['count_off_enabled'] is not None else None,
+    )
+
+
+def get_user_sets(user_id: int) -> list[SetRecord]:
+    """Get all sets for a user."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM user_sets WHERE user_id = ? ORDER BY updated_at DESC",
+            (user_id,)
+        ).fetchall()
+        return [_row_to_set(row) for row in rows]
+
+
+def get_set(set_id: int, user_id: int) -> SetRecord | None:
+    """Get a specific set belonging to a user."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM user_sets WHERE id = ? AND user_id = ?",
+            (set_id, user_id)
+        ).fetchone()
+        return _row_to_set(row) if row else None
+
+
+def insert_set(user_id: int, name: str) -> SetRecord:
+    """Insert a new set. Enforces max sets limit."""
+    with get_connection() as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+        count = conn.execute(
+            "SELECT COUNT(*) as cnt FROM user_sets WHERE user_id = ?", (user_id,)
+        ).fetchone()['cnt']
+        if count >= MAX_USER_SETS:
+            raise ValueError(f"Maximum of {MAX_USER_SETS} sets reached")
+        cursor = conn.execute(
+            "INSERT INTO user_sets (user_id, name) VALUES (?, ?)",
+            (user_id, name)
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM user_sets WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        return _row_to_set(row)
+
+
+def update_set(set_id: int, user_id: int, name: str) -> SetRecord | None:
+    """Rename a set. Returns None if not found."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM user_sets WHERE id = ? AND user_id = ?", (set_id, user_id)
+        ).fetchone()
+        if not row:
+            return None
+        conn.execute(
+            "UPDATE user_sets SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (name, set_id)
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM user_sets WHERE id = ?", (set_id,)).fetchone()
+        return _row_to_set(row)
+
+
+def delete_set(set_id: int, user_id: int) -> bool:
+    """Delete a set and its items. Returns True if deleted."""
+    with get_connection() as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+        cursor = conn.execute(
+            "DELETE FROM user_sets WHERE id = ? AND user_id = ?", (set_id, user_id)
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def get_set_items(set_id: int) -> list[SetItemRecord]:
+    """Get all items in a set, ordered by position."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM set_items WHERE set_id = ? ORDER BY position",
+            (set_id,)
+        ).fetchall()
+        return [_row_to_set_item(row) for row in rows]
+
+
+def get_set_item_count(set_id: int) -> int:
+    """Get the number of items in a set."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) as cnt FROM set_items WHERE set_id = ?", (set_id,)
+        ).fetchone()
+        return row['cnt']
+
+
+def insert_set_item(
+    set_id: int,
+    tune_source: str,
+    tune_ref: str,
+    tune_title: str,
+    bpm: int | None = None,
+    transpose: int | None = None,
+    octave_shift: int | None = None,
+    synth_type: str | None = None,
+    metronome_enabled: bool | None = None,
+    count_off_enabled: bool | None = None,
+) -> SetItemRecord:
+    """Add an item to the end of a set."""
+    with get_connection() as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+        count = conn.execute(
+            "SELECT COUNT(*) as cnt FROM set_items WHERE set_id = ?", (set_id,)
+        ).fetchone()['cnt']
+        if count >= MAX_SET_ITEMS:
+            raise ValueError(f"Maximum of {MAX_SET_ITEMS} items per set reached")
+        position = count  # 0-indexed, append at end
+        cursor = conn.execute(
+            """INSERT INTO set_items
+               (set_id, position, tune_source, tune_ref, tune_title, bpm, transpose, octave_shift, synth_type, metronome_enabled, count_off_enabled)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (set_id, position, tune_source, tune_ref, tune_title, bpm, transpose, octave_shift, synth_type, metronome_enabled, count_off_enabled)
+        )
+        # Update set's updated_at
+        conn.execute("UPDATE user_sets SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (set_id,))
+        conn.commit()
+        row = conn.execute("SELECT * FROM set_items WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        return _row_to_set_item(row)
+
+
+def update_set_item(
+    item_id: int,
+    set_id: int,
+    bpm: int | None = None,
+    transpose: int | None = None,
+    octave_shift: int | None = None,
+    synth_type: str | None = None,
+    metronome_enabled: bool | None = None,
+    count_off_enabled: bool | None = None,
+) -> SetItemRecord | None:
+    """Update a set item's settings."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM set_items WHERE id = ? AND set_id = ?", (item_id, set_id)
+        ).fetchone()
+        if not row:
+            return None
+        updates = []
+        params: list = []
+        if bpm is not None:
+            updates.append("bpm = ?")
+            params.append(bpm)
+        if transpose is not None:
+            updates.append("transpose = ?")
+            params.append(transpose)
+        if octave_shift is not None:
+            updates.append("octave_shift = ?")
+            params.append(octave_shift)
+        if synth_type is not None:
+            updates.append("synth_type = ?")
+            params.append(synth_type)
+        if metronome_enabled is not None:
+            updates.append("metronome_enabled = ?")
+            params.append(metronome_enabled)
+        if count_off_enabled is not None:
+            updates.append("count_off_enabled = ?")
+            params.append(count_off_enabled)
+        if not updates:
+            return _row_to_set_item(row)
+        params.extend([item_id, set_id])
+        conn.execute(
+            f"UPDATE set_items SET {', '.join(updates)} WHERE id = ? AND set_id = ?",
+            params
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM set_items WHERE id = ?", (item_id,)).fetchone()
+        return _row_to_set_item(row)
+
+
+def delete_set_item(item_id: int, set_id: int) -> bool:
+    """Delete a set item and reorder remaining items."""
+    with get_connection() as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+        row = conn.execute(
+            "SELECT * FROM set_items WHERE id = ? AND set_id = ?", (item_id, set_id)
+        ).fetchone()
+        if not row:
+            return False
+        deleted_pos = row['position']
+        conn.execute("DELETE FROM set_items WHERE id = ?", (item_id,))
+        # Shift down positions above the deleted item
+        conn.execute(
+            "UPDATE set_items SET position = position - 1 WHERE set_id = ? AND position > ?",
+            (set_id, deleted_pos)
+        )
+        conn.execute("UPDATE user_sets SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (set_id,))
+        conn.commit()
+        return True
+
+
+def reorder_set_items(set_id: int, item_ids: list[int]) -> list[SetItemRecord]:
+    """Reorder set items by providing the new order of item IDs."""
+    with get_connection() as conn:
+        for position, item_id in enumerate(item_ids):
+            conn.execute(
+                "UPDATE set_items SET position = ? WHERE id = ? AND set_id = ?",
+                (position, item_id, set_id)
+            )
+        conn.execute("UPDATE user_sets SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (set_id,))
+        conn.commit()
+    return get_set_items(set_id)
 
 
 def print_tunes_table() -> None:

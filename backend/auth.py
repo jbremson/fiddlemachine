@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import traceback
 from datetime import datetime, timedelta, timezone
 
@@ -196,6 +197,19 @@ def _song_to_dict(song):
         "created_at": song.created_at.isoformat(),
         "updated_at": song.updated_at.isoformat(),
     }
+
+
+@auth_router.get("/songs/next-tag")
+async def next_tag(name: str, user: UserRecord = Depends(require_user)):
+    """Return the next available version tag for a song name."""
+    songs = get_user_songs(user.id)
+    max_version = 0
+    for song in songs:
+        # Match "Name vN" pattern
+        m = re.match(re.escape(name) + r'\s+v(\d+)$', song.title)
+        if m:
+            max_version = max(max_version, int(m.group(1)))
+    return {"tag": f"v{max_version + 1}"}
 
 
 @auth_router.get("/songs")

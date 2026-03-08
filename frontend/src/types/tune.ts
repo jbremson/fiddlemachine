@@ -43,3 +43,34 @@ export interface TuneInfo extends TuneSummary {
 export type PlaybackState = 'stopped' | 'playing' | 'paused';
 
 export type SectionMode = 'full' | 'A' | 'B';
+
+export type TuneSource = 'library' | 'user_song';
+
+export interface SetItem {
+  id: number;
+  position: number;
+  tune_source: TuneSource;
+  tune_ref: string;
+  tune_title: string;
+  bpm: number | null;
+  transpose: number | null;
+  octave_shift: number | null;
+  synth_type: string | null;
+  metronome_enabled: boolean | null;
+  count_off_enabled: boolean | null;
+}
+
+export interface SetSummary {
+  id: number;
+  name: string;
+  item_count: number;
+  updated_at: string;
+}
+
+export interface SetDetail {
+  id: number;
+  name: string;
+  items: SetItem[];
+  created_at: string;
+  updated_at: string;
+}

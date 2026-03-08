@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { NotationView } from './NotationView';
 import { TransportControls } from './TransportControls';
 import { OctaveControl } from './OctaveControl';
@@ -8,8 +8,9 @@ import { CountOffButton } from './CountOffButton';
 import { RepeatSelector } from './RepeatSelector';
 import { LoopButton } from './LoopButton';
 import { SettingsPanel } from './SettingsPanel';
-import { Tune, TuneInfo, PlaybackState } from '../types/tune';
+import { Tune, TuneInfo, PlaybackState, SetDetail, SetSummary } from '../types/tune';
 import { SynthType } from '../audio/synth';
+import { useAuth } from '../context/AuthContext';
 
 interface PlayerViewProps {
   tune: Tune;
@@ -37,6 +38,10 @@ interface PlayerViewProps {
   onCountOffToggle: (enabled: boolean) => void;
   onDismissError: () => void;
   onReloadAbc: (abc: string) => void;
+  activeSet: SetDetail | null;
+  activeSetIndex: number;
+  onNextTune: () => void;
+  onPrevTune: () => void;
 }
 
 export function PlayerView({
@@ -65,7 +70,12 @@ export function PlayerView({
   onCountOffToggle,
   onDismissError,
   onReloadAbc,
+  activeSet,
+  activeSetIndex,
+  onNextTune,
+  onPrevTune,
 }: PlayerViewProps) {
+  const { isLoggedIn } = useAuth();
   const [showSettings, setShowSettings] = useState(false);
   const [showAbcEditor, setShowAbcEditor] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
@@ -77,6 +87,72 @@ export function PlayerView({
   const [abcText, setAbcText] = useState(tune.abc);
   const abcEditorRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Save state
+  const [showSaveForm, setShowSaveForm] = useState(false);
+  const [saveName, setSaveName] = useState('');
+  const [saveTag, setSaveTag] = useState('');
+  const [saveNotes, setSaveNotes] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Add to Set state
+  const [showAddToSet, setShowAddToSet] = useState(false);
+  const [userSets, setUserSets] = useState<SetSummary[]>([]);
+  const [addToSetSuccess, setAddToSetSuccess] = useState<string | null>(null);
+
+  const fetchNextTag = useCallback(async (name: string) => {
+    if (!name.trim()) { setSaveTag('v1'); return; }
+    try {
+      const res = await fetch(`/api/songs/next-tag?name=${encodeURIComponent(name.trim())}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSaveTag(data.tag);
+      }
+    } catch {
+      setSaveTag('v1');
+    }
+  }, []);
+
+  const handleOpenSaveForm = () => {
+    const name = tune.title || '';
+    setSaveName(name);
+    setSaveNotes('');
+    setSaveError(null);
+    setSaveSuccess(false);
+    setShowSaveForm(true);
+    fetchNextTag(name);
+  };
+
+  const handleSaveNameChange = (name: string) => {
+    setSaveName(name);
+    fetchNextTag(name);
+  };
+
+  const handleSaveSong = async () => {
+    setIsSaving(true);
+    setSaveError(null);
+    const title = `${saveName.trim()} ${saveTag.trim()}`;
+    try {
+      const res = await fetch('/api/songs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, notes: saveNotes || null, abc_content: tune.abc }),
+      });
+      if (res.ok) {
+        setSaveSuccess(true);
+        setShowSaveForm(false);
+      } else {
+        const data = await res.json();
+        setSaveError(data.detail || 'Failed to save song');
+      }
+    } catch {
+      setSaveError('Failed to save song');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (showAbcEditor && abcEditorRef.current) {
@@ -118,7 +194,20 @@ export function PlayerView({
         >
           ← Back
         </button>
-        <h1 className="tune-title">{tune.title}</h1>
+        <div className="tune-title-area">
+          <div className="tune-title-row">
+            {activeSet && activeSetIndex > 0 && (
+              <button className="set-nav-btn" onClick={onPrevTune} aria-label="Previous tune">←</button>
+            )}
+            <h1 className="tune-title">{tune.title}</h1>
+            {activeSet && activeSetIndex < activeSet.items.length - 1 && (
+              <button className="set-nav-btn" onClick={onNextTune} aria-label="Next tune">→</button>
+            )}
+          </div>
+          {activeSet && (
+            <div className="set-position-indicator">{activeSetIndex + 1}/{activeSet.items.length}</div>
+          )}
+        </div>
         <div className="header-menu" ref={menuRef}>
           <button
             className="menu-btn"
@@ -258,15 +347,109 @@ export function PlayerView({
         />
 
         <div className="edit-abc-section">
-          <button
-            className="edit-abc-link"
-            onClick={() => {
-              setAbcText(tune.abc);
-              setShowAbcEditor(!showAbcEditor);
-            }}
-          >
-            {showAbcEditor ? 'Hide ABC' : 'Edit ABC'}
-          </button>
+          <div className="edit-abc-actions">
+            <button
+              className="edit-abc-link"
+              onClick={() => {
+                setAbcText(tune.abc);
+                setShowAbcEditor(!showAbcEditor);
+              }}
+            >
+              {showAbcEditor ? 'Hide ABC' : 'Edit ABC'}
+            </button>
+            {isLoggedIn && !showSaveForm && (
+              <button
+                className="edit-abc-link player-save-btn"
+                onClick={handleOpenSaveForm}
+              >
+                Save
+              </button>
+            )}
+            {isLoggedIn && (
+              <button
+                className="edit-abc-link"
+                onClick={async () => {
+                  setShowAddToSet(!showAddToSet);
+                  setAddToSetSuccess(null);
+                  if (!showAddToSet) {
+                    const res = await fetch('/api/sets');
+                    if (res.ok) setUserSets(await res.json());
+                  }
+                }}
+              >
+                Add to Set
+              </button>
+            )}
+          </div>
+          {saveSuccess && <div className="save-success">Song saved!</div>}
+          {addToSetSuccess && <div className="save-success">{addToSetSuccess}</div>}
+          {showAddToSet && (
+            <div className="add-to-set-dropdown">
+              {userSets.length === 0 ? (
+                <p className="empty">No sets. Create one from the tune list.</p>
+              ) : (
+                <ul>
+                  {userSets.map(s => (
+                    <li key={s.id}>
+                      <button onClick={async () => {
+                        // Determine tune_source and tune_ref
+                        const isLibrary = !tune.id.startsWith('song_') && tune.id !== 'pasted';
+                        const tuneSource = isLibrary ? 'library' : 'user_song';
+                        const tuneRef = isLibrary ? tune.id : tune.id.replace('song_', '');
+                        const res = await fetch(`/api/sets/${s.id}/items`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            tune_source: tuneSource,
+                            tune_ref: tuneRef,
+                            tune_title: tune.title,
+                          }),
+                        });
+                        if (res.ok) {
+                          setAddToSetSuccess(`Added to "${s.name}"`);
+                          setShowAddToSet(false);
+                        }
+                      }}>
+                        {s.name} <span className="set-item-count">({s.item_count})</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          {showSaveForm && (
+            <div className="save-form">
+              <div className="save-form-row">
+                <input
+                  type="text"
+                  placeholder="Name"
+                  value={saveName}
+                  onChange={(e) => handleSaveNameChange(e.target.value)}
+                />
+                <input
+                  type="text"
+                  placeholder="Tag"
+                  value={saveTag}
+                  onChange={(e) => setSaveTag(e.target.value)}
+                  style={{ maxWidth: '80px' }}
+                />
+              </div>
+              <textarea
+                placeholder="Notes (optional)"
+                value={saveNotes}
+                onChange={(e) => setSaveNotes(e.target.value)}
+                rows={2}
+              />
+              {saveError && <div className="save-error">{saveError}</div>}
+              <div className="save-form-actions">
+                <button onClick={handleSaveSong} disabled={!saveName.trim() || !saveTag.trim() || isSaving}>
+                  {isSaving ? 'Saving...' : 'Save Song'}
+                </button>
+                <button className="cancel-btn" onClick={() => setShowSaveForm(false)}>Cancel</button>
+              </div>
+            </div>
+          )}
 
           {showAbcEditor && (
             <div className="abc-editor" ref={abcEditorRef}>

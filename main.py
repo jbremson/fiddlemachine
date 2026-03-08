@@ -14,6 +14,7 @@ import os
 
 from backend.api import router
 from backend.auth import auth_router
+from backend.sets import sets_router
 
 
 class ProxyHeadersMiddleware:
@@ -44,6 +45,7 @@ app.add_middleware(ProxyHeadersMiddleware)
 # Include API routes
 app.include_router(router)
 app.include_router(auth_router)
+app.include_router(sets_router)
 
 # Serve static frontend files in production
 frontend_dist = Path(__file__).parent / "frontend" / "dist"
