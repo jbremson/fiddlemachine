@@ -136,13 +136,14 @@ async def auth_callback(request: Request):
 
         jwt_token = _create_jwt(user.google_id)
         response = RedirectResponse(url="/")
+        _is_https = bool(os.environ.get("OAUTH_REDIRECT_URI", "").startswith("https"))
         response.set_cookie(
             key=COOKIE_NAME,
             value=jwt_token,
             httponly=True,
             samesite="lax",
             max_age=JWT_EXPIRY_DAYS * 86400,
-            secure=False,
+            secure=_is_https,
         )
         return response
     except HTTPException:
