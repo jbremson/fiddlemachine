@@ -657,6 +657,13 @@ def get_user_by_google_id(google_id: str) -> UserRecord | None:
         return _row_to_user(row) if row else None
 
 
+def get_user_by_email(email: str) -> UserRecord | None:
+    """Get a user by their email address."""
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+        return _row_to_user(row) if row else None
+
+
 def get_user_songs(user_id: int) -> list[UserSongRecord]:
     """Get all songs for a user."""
     with get_connection() as conn:

@@ -13,6 +13,8 @@ interface AuthContextType {
   loading: boolean;
   login: () => void;
   logout: () => Promise<void>;
+  loginWithEmail: (email: string) => Promise<{ ok: boolean }>;
+  verifyEmailCode: (email: string, code: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -21,6 +23,8 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   login: () => {},
   logout: async () => {},
+  loginWithEmail: async () => ({ ok: false }),
+  verifyEmailCode: async () => false,
 });
 
 export function useAuth() {
@@ -56,8 +60,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const loginWithEmail = useCallback(async (email: string) => {
+    const res = await fetch('/api/auth/email/send-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    if (!res.ok) return { ok: false };
+    return { ok: true };
+  }, []);
+
+  const verifyEmailCode = useCallback(async (email: string, code: string) => {
+    const res = await fetch('/api/auth/email/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code }),
+    });
+    if (!res.ok) return false;
+    const meRes = await fetch('/api/auth/me');
+    if (meRes.ok) {
+      setUser(await meRes.json());
+    }
+    return true;
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, isLoggedIn: !!user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoggedIn: !!user, loading, login, logout, loginWithEmail, verifyEmailCode }}>
       {children}
     </AuthContext.Provider>
   );

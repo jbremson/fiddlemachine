@@ -2357,3 +2357,105 @@ body {
 .add-to-set-actions .cancel-btn:hover {
   background: #777;
 }
+
+/* Email Login */
+.email-login-popup {
+  max-width: 380px;
+}
+
+.google-login-btn {
+  width: 100%;
+  padding: 0.6rem 1.25rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.google-login-btn:hover {
+  background: var(--primary-light);
+}
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1rem 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--border-color);
+}
+
+.email-login-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.email-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.email-login-form input {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.95rem;
+}
+
+.email-login-form input:focus {
+  outline: 2px solid var(--primary-light);
+  outline-offset: 1px;
+  border-color: var(--primary-light);
+}
+
+.email-login-form button {
+  padding: 0.6rem 1.25rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.email-login-form button:hover:not(:disabled) {
+  background: var(--primary-light);
+}
+
+.email-login-form button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.email-back-btn {
+  background: #999 !important;
+}
+
+.email-back-btn:hover {
+  background: #777 !important;
+}
+
+.email-sent-msg {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.email-error {
+  color: #B91C1C;
+  font-size: 0.85rem;
+  margin: 0;
+}

@@ -24,7 +24,15 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
   const [libraryExpanded, setLibraryExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const menuRef = useRef<HTMLDivElement>(null);
-  const { user, isLoggedIn, login, logout } = useAuth();
+  const { user, isLoggedIn, login, logout, loginWithEmail, verifyEmailCode } = useAuth();
+
+  // Email login state
+  const [showEmailLogin, setShowEmailLogin] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
+  const [codeInput, setCodeInput] = useState('');
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [emailLoading, setEmailLoading] = useState(false);
 
   // My Songs state
   const [mySongs, setMySongs] = useState<Array<{ id: number; title: string; notes: string | null; abc_content: string; updated_at: string }>>([]);
@@ -347,7 +355,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
               <span className="auth-btn-label"> - Sign out</span>
             </button>
           ) : (
-            <button className="auth-btn" onClick={login}>
+            <button className="auth-btn" onClick={() => setShowEmailLogin(true)}>
               Sign in
             </button>
           )}
@@ -622,6 +630,102 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
                 <li>Metronome and count-off</li>
                 <li>Loop and repeat controls</li>
               </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEmailLogin && !isLoggedIn && (
+        <div className="about-overlay" onClick={() => setShowEmailLogin(false)}>
+          <div className="about-popup email-login-popup" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="about-close"
+              onClick={() => { setShowEmailLogin(false); setEmailSent(false); setEmailError(''); setEmailInput(''); setCodeInput(''); }}
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <h2>Sign In</h2>
+            <button className="google-login-btn" onClick={() => { setShowEmailLogin(false); login(); }}>
+              Sign in with Google
+            </button>
+            <div className="login-divider"><span>or</span></div>
+            <div className="email-login-section">
+              {!emailSent ? (
+                <div className="email-login-form">
+                  <input
+                    type="email"
+                    placeholder="Email address"
+                    value={emailInput}
+                    onChange={(e) => { setEmailInput(e.target.value); setEmailError(''); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && emailInput.trim()) {
+                        setEmailLoading(true);
+                        setEmailError('');
+                        loginWithEmail(emailInput.trim()).then(r => {
+                          if (r.ok) { setEmailSent(true); } else { setEmailError('Failed to send code. Try again.'); }
+                        }).catch(() => setEmailError('Failed to send code. Try again.')).finally(() => setEmailLoading(false));
+                      }
+                    }}
+                    disabled={emailLoading}
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => {
+                      setEmailLoading(true);
+                      setEmailError('');
+                      loginWithEmail(emailInput.trim()).then(r => {
+                        if (r.ok) { setEmailSent(true); } else { setEmailError('Failed to send code. Try again.'); }
+                      }).catch(() => setEmailError('Failed to send code. Try again.')).finally(() => setEmailLoading(false));
+                    }}
+                    disabled={!emailInput.trim() || emailLoading}
+                  >
+                    {emailLoading ? 'Sending...' : 'Send Code'}
+                  </button>
+                </div>
+              ) : (
+                <div className="email-login-form">
+                  <p className="email-sent-msg">Code sent to {emailInput}</p>
+                  <input
+                    type="text"
+                    placeholder="Enter code"
+                    value={codeInput}
+                    onChange={(e) => { setCodeInput(e.target.value); setEmailError(''); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && codeInput.trim()) {
+                        setEmailLoading(true);
+                        setEmailError('');
+                        verifyEmailCode(emailInput.trim(), codeInput.trim()).then(ok => {
+                          if (ok) { setShowEmailLogin(false); setEmailSent(false); setEmailInput(''); setCodeInput(''); }
+                          else { setEmailError('Invalid or expired code.'); }
+                        }).catch(() => setEmailError('Verification failed. Try again.')).finally(() => setEmailLoading(false));
+                      }
+                    }}
+                    disabled={emailLoading}
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => {
+                      setEmailLoading(true);
+                      setEmailError('');
+                      verifyEmailCode(emailInput.trim(), codeInput.trim()).then(ok => {
+                        if (ok) { setShowEmailLogin(false); setEmailSent(false); setEmailInput(''); setCodeInput(''); }
+                        else { setEmailError('Invalid or expired code.'); }
+                      }).catch(() => setEmailError('Verification failed. Try again.')).finally(() => setEmailLoading(false));
+                    }}
+                    disabled={!codeInput.trim() || emailLoading}
+                  >
+                    {emailLoading ? 'Verifying...' : 'Verify'}
+                  </button>
+                  <button
+                    className="email-back-btn"
+                    onClick={() => { setEmailSent(false); setCodeInput(''); setEmailError(''); }}
+                  >
+                    Back
+                  </button>
+                </div>
+              )}
+              {emailError && <p className="email-error">{emailError}</p>}
             </div>
           </div>
         </div>

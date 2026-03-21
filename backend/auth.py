@@ -1,4 +1,4 @@
-"""Google OAuth authentication and user song endpoints."""
+"""Google OAuth and email code authentication, plus user song endpoints."""
 
 import logging
 import os
@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
+import httpx
 import jwt
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -171,6 +172,71 @@ async def me(request: Request):
 async def logout():
     response = JSONResponse(content={"ok": True})
     response.delete_cookie(key=COOKIE_NAME)
+    return response
+
+
+# --- Email code authentication ---
+
+class EmailSendCode(BaseModel):
+    email: str
+
+
+class EmailVerify(BaseModel):
+    email: str
+    code: str
+
+
+@auth_router.post("/auth/email/send-code")
+async def email_send_code(body: EmailSendCode):
+    email_auth_url = os.environ.get("EMAIL_AUTH_URL", "")
+    access_key = os.environ.get("EMAIL_AUTH_ACCESS_KEY", "")
+    if not email_auth_url or not access_key:
+        raise HTTPException(status_code=500, detail="Email authentication not configured")
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{email_auth_url}/send-verification-mail",
+            json={"email": body.email, "access_key": access_key},
+            timeout=10,
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to send verification email")
+    return {"ok": True}
+
+
+@auth_router.post("/auth/email/verify")
+async def email_verify(body: EmailVerify):
+    email_auth_url = os.environ.get("EMAIL_AUTH_URL", "")
+    access_key = os.environ.get("EMAIL_AUTH_ACCESS_KEY", "")
+    if not email_auth_url or not access_key:
+        raise HTTPException(status_code=500, detail="Email authentication not configured")
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{email_auth_url}/verify-code",
+            json={"email": body.email, "access_key": access_key, "code": body.code},
+            timeout=10,
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=401, detail="Invalid or expired code")
+    result = resp.json()
+    if not result.get("valid"):
+        raise HTTPException(status_code=401, detail="Invalid or expired code")
+
+    google_id = f"email:{body.email}"
+    user = upsert_user(google_id=google_id, email=body.email, name=None, picture_url=None)
+    jwt_token = _create_jwt(google_id)
+    _is_https = bool(os.environ.get("OAUTH_REDIRECT_URI", "").startswith("https"))
+    response = JSONResponse(content={
+        "ok": True,
+        "user": {"id": user.id, "email": user.email, "name": user.name, "picture_url": user.picture_url},
+    })
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=jwt_token,
+        httponly=True,
+        samesite="lax",
+        max_age=JWT_EXPIRY_DAYS * 86400,
+        secure=_is_https,
+    )
     return response
 
 
