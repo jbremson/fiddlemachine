@@ -372,35 +372,19 @@ def _expand_playback_notes(sections: list[Section], time_sig: str) -> list[Secti
         # Calculate section duration
         section_duration = max(n.start_time + n.duration for n in section.notes)
 
-        # Use pickup_beats calculated from music21 measure numbers during assignment
-        pickup_duration = section.pickup_beats
-        has_pickup = pickup_duration > 0.01
-
+        # On repeat, include the pickup — the partial last bar + pickup
+        # = one complete bar. This is standard repeat behavior in music.
         playback_notes = []
         current_offset = 0.0
 
         for rep in range(section.repeat):
-            skip_beats = 0.0
-
-            if rep > 0 and has_pickup:
-                # Skip pickup notes on repeat — the short final bar from the
-                # previous play fills the role of the pickup
-                skip_beats = pickup_duration
-
             for note in section.notes:
-                if note.start_time < skip_beats:
-                    continue
-
                 playback_notes.append(Note(
                     pitch=note.pitch,
                     duration=note.duration,
-                    start_time=current_offset + note.start_time - skip_beats
+                    start_time=current_offset + note.start_time
                 ))
-
-            if rep == 0:
-                current_offset += section_duration
-            else:
-                current_offset += section_duration - skip_beats
+            current_offset += section_duration
 
         expanded_sections.append(Section(
             name=section.name,
