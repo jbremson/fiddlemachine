@@ -111,11 +111,23 @@ def _sections_from_repeats(music: str) -> list[dict]:
                     break
             else:
                 # Separate :| marker - look for content before next | or |:
+                # Also look PAST |: since pickup can be at |:E2| (after repeat start)
                 for j in range(i + 1, len(tokens)):
                     next_token = tokens[j].strip()
                     if not next_token:
                         continue
-                    if next_token in ('|', '||', '|:', ':|', ':||:', ':|:'):
+                    if next_token == '|:':
+                        # Found start of next repeat - look for pickup after it
+                        for k in range(j + 1, len(tokens)):
+                            ktoken = tokens[k].strip()
+                            if not ktoken:
+                                continue
+                            if ktoken in ('|', '||', '|:', ':|', ':||:', ':|:'):
+                                break
+                            pickup_content = ktoken
+                            break
+                        break
+                    if next_token in ('|', '||', ':|', ':||:', ':|:'):
                         break
                     # Found music content directly after :|
                     pickup_content = next_token

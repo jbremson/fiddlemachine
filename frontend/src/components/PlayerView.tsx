@@ -75,7 +75,7 @@ export function PlayerView({
   onNextTune,
   onPrevTune,
 }: PlayerViewProps) {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, logout } = useAuth();
   const [showSettings, setShowSettings] = useState(false);
   const [showAbcEditor, setShowAbcEditor] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
@@ -246,6 +246,17 @@ export function PlayerView({
               >
                 About
               </button>
+              {isLoggedIn && (
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    logout();
+                    setMenuOpen(false);
+                  }}
+                >
+                  Sign out
+                </button>
+              )}
             </div>
           )}
         </div>

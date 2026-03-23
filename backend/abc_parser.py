@@ -37,7 +37,7 @@ def parse_abc(abc_content: str, tune_id: str) -> Tune:
     sections = _assign_notes_to_sections(all_notes, section_info, time_sig)
 
     # Generate expanded playback notes (repeats unrolled)
-    sections = _expand_playback_notes(sections)
+    sections = _expand_playback_notes(sections, time_sig)
 
     # Calculate pickup beats for lead-in calculation
     pickup_beats = _calculate_pickup_beats(sections, time_sig)
@@ -148,49 +148,18 @@ def _calculate_pickup_beats(sections: list[Section], time_sig: str) -> float:
     """
     Calculate the duration of pickup notes in beats.
 
-    A pickup is a partial first bar - notes that occur before the first full bar.
-    Returns the total duration of pickup notes, or beats_per_bar if no pickup
-    (meaning the first bar is complete).
-
-    Args:
-        sections: List of parsed sections with notes
-        time_sig: Time signature string (e.g., "4/4", "3/4")
-
-    Returns:
-        Duration in beats of the pickup, or beats_per_bar if no pickup
+    Uses the pickup_beats value calculated from music21 measure numbers
+    during section assignment. Returns beats_per_bar if no pickup.
     """
     beats_per_bar = _get_beats_per_measure(time_sig)
 
     if not sections or not sections[0].notes:
         return beats_per_bar
 
-    first_section = sections[0]
-    notes = first_section.notes
+    if sections[0].pickup_beats > 0.01:
+        return sections[0].pickup_beats
 
-    # Calculate the total duration of notes in the first section
-    # that occur before where the first full bar would end
-    # If the section starts with a pickup, the notes will have start_time < beats_per_bar
-    # but won't fill the whole bar
-
-    # Find the last note that starts before the end of what would be the first full bar
-    # A pickup bar is partial, so total duration of pickup notes < beats_per_bar
-    first_bar_notes = [n for n in notes if n.start_time < beats_per_bar]
-
-    if not first_bar_notes:
-        return beats_per_bar
-
-    # Calculate total duration of notes in the potential pickup bar
-    # The pickup duration is the end time of the last note that fits in the first bar
-    last_note = max(first_bar_notes, key=lambda n: n.start_time + n.duration)
-    pickup_duration = last_note.start_time + last_note.duration
-
-    # If the first bar is full (duration == beats_per_bar), return beats_per_bar
-    # If it's partial (duration < beats_per_bar), that's the pickup duration
-    # Use a small epsilon for floating point comparison
-    if pickup_duration >= beats_per_bar - 0.01:
-        return beats_per_bar
-
-    return pickup_duration
+    return beats_per_bar
 
 
 def _assign_notes_to_sections(
@@ -214,6 +183,7 @@ def _assign_notes_to_sections(
 
     # Sort notes by start time
     sorted_notes = sorted(all_notes, key=lambda n: n['start_time'])
+    beats_per_measure = _get_beats_per_measure(time_sig)
 
     if not sorted_notes:
         return [Section(name=info['name'], start_measure=info['start_measure'],
@@ -337,9 +307,19 @@ def _assign_notes_to_sections(
                 notes_in_section.append(n)
 
         section_notes = []
+        section_pickup = 0.0
         if notes_in_section:
             # Find the earliest start time in this section to use as offset
             section_start_time = min(n['start_time'] for n in notes_in_section)
+
+            # Calculate pickup beats from music21 measure numbers.
+            # The first measure of the section may be a partial (pickup) bar.
+            # Compare the first measure's beat span to beats_per_bar.
+            first_measure = min(n['measure'] for n in notes_in_section)
+            first_measure_notes = [n for n in notes_in_section if n['measure'] == first_measure]
+            first_measure_span = max(n['start_time'] + n['duration'] for n in first_measure_notes) - section_start_time
+            if first_measure_span < beats_per_measure - 0.01:
+                section_pickup = first_measure_span
 
             for n in notes_in_section:
                 # Adjust start time relative to section start
@@ -355,30 +335,36 @@ def _assign_notes_to_sections(
             start_measure=info['start_measure'],
             end_measure=info['end_measure'],
             notes=section_notes,
-            repeat=info.get('repeat', 1)
+            repeat=info.get('repeat', 1),
+            pickup_beats=section_pickup,
         ))
 
     return sections
 
 
-def _expand_playback_notes(sections: list[Section]) -> list[Section]:
+def _expand_playback_notes(sections: list[Section], time_sig: str) -> list[Section]:
     """
     Expand section notes for playback by unrolling repeats.
 
     For sections with repeat > 1, duplicate the notes with adjusted timing
     so playback doesn't need to handle repeat logic.
+
+    When a section has a pickup (partial first bar), on repeats the pickup
+    is skipped — the final short bar loops back to the first full bar,
+    since the short final bar + pickup = one complete bar.
     """
+    beats_per_bar = _get_beats_per_measure(time_sig)
     expanded_sections = []
 
     for section in sections:
         if section.repeat <= 1 or not section.notes:
-            # No repeat, playback_notes same as notes
             expanded_sections.append(Section(
                 name=section.name,
                 start_measure=section.start_measure,
                 end_measure=section.end_measure,
                 notes=section.notes,
                 repeat=section.repeat,
+                pickup_beats=section.pickup_beats,
                 playback_notes=section.notes.copy()
             ))
             continue
@@ -386,31 +372,20 @@ def _expand_playback_notes(sections: list[Section]) -> list[Section]:
         # Calculate section duration
         section_duration = max(n.start_time + n.duration for n in section.notes)
 
-        # Detect pickup notes (partial bar at the start)
-        # These are notes that occur before the first full beat
-        # Pickup is detected if total duration isn't a clean multiple of typical bar length
-        # For simplicity, check if any notes start before beat 1
-        pickup_notes = [n for n in section.notes if n.start_time < 1.0]
-        has_pickup = len(pickup_notes) > 0 and section.notes[0].start_time > 0
-
-        # Actually, better detection: if section doesn't start at 0, no pickup
-        # If it starts at 0 but first note is very short, that might be a pickup
-        # Let's use a simpler heuristic: section duration mod beats_per_bar
+        # Use pickup_beats calculated from music21 measure numbers during assignment
+        pickup_duration = section.pickup_beats
+        has_pickup = pickup_duration > 0.01
 
         playback_notes = []
         current_offset = 0.0
 
         for rep in range(section.repeat):
-            # On first play, include all notes
-            # On subsequent plays, skip pickup notes (they're replaced by the ending)
             skip_beats = 0.0
 
             if rep > 0 and has_pickup:
-                # Find where the "real" start is (after pickup)
-                # Pickup notes are typically the few notes at the very beginning
-                # that fill out an incomplete bar
-                first_full_beat = min(n.start_time for n in section.notes if n.start_time >= 1.0) if any(n.start_time >= 1.0 for n in section.notes) else 0
-                skip_beats = first_full_beat
+                # Skip pickup notes on repeat — the short final bar from the
+                # previous play fills the role of the pickup
+                skip_beats = pickup_duration
 
             for note in section.notes:
                 if note.start_time < skip_beats:
@@ -422,7 +397,6 @@ def _expand_playback_notes(sections: list[Section]) -> list[Section]:
                     start_time=current_offset + note.start_time - skip_beats
                 ))
 
-            # Advance offset by section duration (minus skipped pickup if applicable)
             if rep == 0:
                 current_offset += section_duration
             else:
@@ -434,6 +408,7 @@ def _expand_playback_notes(sections: list[Section]) -> list[Section]:
             end_measure=section.end_measure,
             notes=section.notes,
             repeat=section.repeat,
+            pickup_beats=section.pickup_beats,
             playback_notes=playback_notes
         ))
 

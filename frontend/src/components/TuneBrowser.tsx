@@ -48,7 +48,6 @@ export function TuneBrowser({ tunes, selectedTuneId, onSelectTune, loading }: Tu
             tabIndex={0}
           >
             <span className="tune-title">{tune.title}</span>
-            <span className="tune-key">{tune.key}</span>
           </li>
         ))}
       </ul>

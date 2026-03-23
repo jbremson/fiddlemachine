@@ -27,7 +27,6 @@ export interface Tune {
 export interface TuneSummary {
   id: string;
   title: string;
-  key: string;
 }
 
 export interface TuneInfo extends TuneSummary {

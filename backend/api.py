@@ -6,7 +6,7 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from .abc_parser import parse_abc
+from .abc_parser import parse_abc  # used by individual tune endpoints
 from .tune import Tune
 from . import database as db
 
@@ -36,7 +36,6 @@ class TuneInfo(BaseModel):
     """Extended tune info including database metadata."""
     id: str
     title: str
-    key: str
     source: str | None = None
     source_url: str | None = None
     quality: str | None = None
@@ -47,17 +46,10 @@ class TuneInfo(BaseModel):
 
 
 def _record_to_tune_info(record: db.TuneRecord) -> TuneInfo:
-    """Convert a TuneRecord to a TuneInfo, parsing ABC for key."""
-    try:
-        tune = parse_abc(record.abc_content, record.tune_id)
-        key = tune.key
-    except Exception:
-        key = "?"
-
+    """Convert a TuneRecord to a TuneInfo."""
     return TuneInfo(
         id=record.tune_id,
         title=record.title,
-        key=key,
         source=record.source,
         source_url=record.source_url,
         quality=record.quality.value,
@@ -220,6 +212,41 @@ async def rate_tune(tune_id: str, request: RatingRequest):
     if not updated:
         raise HTTPException(status_code=404, detail="Tune not found")
 
+    _invalidate_tune_cache()
+    return _record_to_tune_info(updated)
+
+
+@router.delete("/tunes/{tune_id}")
+async def delete_tune(tune_id: str):
+    """Delete a tune from the database."""
+    db.init_db()
+    deleted = db.delete_tune(tune_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Tune not found")
+    _invalidate_tune_cache()
+    return {"ok": True}
+
+
+class TuneUpdate(BaseModel):
+    title: str | None = None
+    abc_content: str | None = None
+    source: str | None = None
+    source_url: str | None = None
+
+
+@router.put("/tunes/{tune_id}", response_model=TuneInfo)
+async def update_tune(tune_id: str, update: TuneUpdate):
+    """Update a tune's title, ABC content, or source info."""
+    db.init_db()
+    updated = db.update_tune(
+        tune_id,
+        title=update.title,
+        abc_content=update.abc_content,
+        source=update.source,
+        source_url=update.source_url,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Tune not found")
     _invalidate_tune_cache()
     return _record_to_tune_info(updated)
 

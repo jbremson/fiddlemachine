@@ -257,22 +257,19 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
   );
 
   // Build unified library list: merge library tunes + user songs
-  type LibraryItem = { id: string; title: string; key: string; isSaved: boolean; abc_content?: string; songId?: number };
+  type LibraryItem = { id: string; title: string; isSaved: boolean; abc_content?: string; songId?: number };
 
   const unifiedLibrary: LibraryItem[] = (() => {
     const libraryItems: LibraryItem[] = tunes.map(t => ({
-      id: t.id, title: t.title, key: t.key, isSaved: false,
+      id: t.id, title: t.title, isSaved: false,
     }));
     const savedItems: LibraryItem[] = mySongs.map(s => ({
-      id: `song_${s.id}`, title: s.title, key: 'Saved', isSaved: true, abc_content: s.abc_content, songId: s.id,
+      id: `song_${s.id}`, title: s.title, isSaved: true, abc_content: s.abc_content, songId: s.id,
     }));
     const all = [...libraryItems, ...savedItems];
     const q = searchQuery.toLowerCase();
     return all
-      .filter(item =>
-        item.title.toLowerCase().includes(q) ||
-        item.key.toLowerCase().includes(q)
-      )
+      .filter(item => item.title.toLowerCase().includes(q))
       .sort((a, b) => a.title.localeCompare(b.title));
   })();
 
@@ -544,7 +541,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
                       tabIndex={0}
                     >
                       <span className="tune-item-title">{item.title}</span>
-                      {item.isSaved ? (
+                      {item.isSaved && (
                         <>
                           <span className="set-source-tag">saved</span>
                           <button
@@ -556,8 +553,6 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
                             ×
                           </button>
                         </>
-                      ) : (
-                        <span className="tune-item-key">{item.key}</span>
                       )}
                     </li>
                   ))}
