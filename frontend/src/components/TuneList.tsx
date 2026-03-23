@@ -608,6 +608,13 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
             </button>
             <h2>Changelog</h2>
             <div className="changelog-content">
+              <h3>March 2026</h3>
+              <ul>
+                <li>Faster tune list loading</li>
+                <li>Fixed pickup and repeat handling for tunes like Old Joe Clark and Angeline the Baker</li>
+                <li>Email sign-in option</li>
+                <li>My Sets with drag-to-reorder</li>
+              </ul>
               <h3>February 2026</h3>
               <ul>
                 <li>New golden brown color scheme</li>
