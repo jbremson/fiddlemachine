@@ -1,5 +1,6 @@
 """SQLite database for tracking tunes."""
 
+import os
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -8,8 +9,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Iterator
 
-# Database location
-DB_PATH = Path(__file__).parent.parent / "data" / "tunes.db"
+# Database location — use DATABASE_PATH env var (for Railway volume mount),
+# falling back to local data/ directory for development
+DB_PATH = Path(os.environ.get("DATABASE_PATH", Path(__file__).parent.parent / "data" / "tunes.db"))
 
 MAX_ABC_CONTENT_LENGTH = 50000
 MAX_USER_ABC_CONTENT_LENGTH = 1024
