@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.1.0 — 2026-04-12
+
+- Add practice stats with play tracking, summary, and history
+- Add bulk tune import from thesession.org
+
 ## v2.0.1 — 2026-03-07
 
 - Bump version to 2.0.1

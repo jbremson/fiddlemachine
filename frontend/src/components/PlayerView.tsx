@@ -542,6 +542,18 @@ export function PlayerView({
             </button>
             <h2>Changelog</h2>
             <div className="changelog-content">
+              <h3>April 2026</h3>
+              <ul>
+                <li>Practice stats with play tracking and history</li>
+                <li>Added hundreds of popular tunes from thesession.org</li>
+              </ul>
+              <h3>March 2026</h3>
+              <ul>
+                <li>Faster tune list loading</li>
+                <li>Fixed pickup and repeat handling for tunes like Old Joe Clark and Angeline the Baker</li>
+                <li>Email sign-in option</li>
+                <li>My Sets with drag-to-reorder</li>
+              </ul>
               <h3>February 2026</h3>
               <ul>
                 <li>Updated playback logic to reduce pickup bar tracking errors</li>

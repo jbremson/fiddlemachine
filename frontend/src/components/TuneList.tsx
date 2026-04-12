@@ -634,6 +634,11 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
             </button>
             <h2>Changelog</h2>
             <div className="changelog-content">
+              <h3>April 2026</h3>
+              <ul>
+                <li>Practice stats with play tracking and history</li>
+                <li>Added hundreds of popular tunes from thesession.org</li>
+              </ul>
               <h3>March 2026</h3>
               <ul>
                 <li>Faster tune list loading</li>
