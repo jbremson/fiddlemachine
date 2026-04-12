@@ -145,6 +145,9 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
         # Make the first user (lowest id) an admin
         conn.execute("UPDATE users SET role = 'admin' WHERE id = (SELECT MIN(id) FROM users)")
 
+    # Ensure joel3000@gmail.com is always admin
+    conn.execute("UPDATE users SET role = 'admin' WHERE email = 'joel3000@gmail.com' AND role != 'admin'")
+
     conn.commit()
 
 
