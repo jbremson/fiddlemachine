@@ -3,10 +3,12 @@
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from .abc_parser import parse_abc  # used by individual tune endpoints
+from .auth import require_admin, require_user
+from .database import UserRecord
 from .tune import Tune
 from . import database as db
 
@@ -110,7 +112,7 @@ class TuneCreateRequest(BaseModel):
 
 
 @router.post("/tunes", response_model=TuneInfo)
-async def create_tune(request: TuneCreateRequest):
+async def create_tune(request: TuneCreateRequest, _admin: UserRecord = Depends(require_admin)):
     """Create a new tune in the database.
 
     If auto_version is True, automatically appends V2, V3, etc. to the title
@@ -162,7 +164,7 @@ class TuneMetadataUpdate(BaseModel):
 
 
 @router.patch("/tunes/{tune_id}/metadata", response_model=TuneInfo)
-async def update_tune_metadata(tune_id: str, update: TuneMetadataUpdate):
+async def update_tune_metadata(tune_id: str, update: TuneMetadataUpdate, _admin: UserRecord = Depends(require_admin)):
     """Update metadata for a tune in the database."""
     db.init_db()
 
@@ -200,7 +202,7 @@ class RatingRequest(BaseModel):
 
 
 @router.post("/tunes/{tune_id}/rate", response_model=TuneInfo)
-async def rate_tune(tune_id: str, request: RatingRequest):
+async def rate_tune(tune_id: str, request: RatingRequest, _user: UserRecord = Depends(require_user)):
     """Rate a tune. Value must be between 0.0 and 5.0."""
     db.init_db()
 
@@ -217,7 +219,7 @@ async def rate_tune(tune_id: str, request: RatingRequest):
 
 
 @router.delete("/tunes/{tune_id}")
-async def delete_tune(tune_id: str):
+async def delete_tune(tune_id: str, _admin: UserRecord = Depends(require_admin)):
     """Delete a tune from the database."""
     db.init_db()
     deleted = db.delete_tune(tune_id)
@@ -235,7 +237,7 @@ class TuneUpdate(BaseModel):
 
 
 @router.put("/tunes/{tune_id}", response_model=TuneInfo)
-async def update_tune(tune_id: str, update: TuneUpdate):
+async def update_tune(tune_id: str, update: TuneUpdate, _admin: UserRecord = Depends(require_admin)):
     """Update a tune's title, ABC content, or source info."""
     db.init_db()
     updated = db.update_tune(
@@ -252,7 +254,7 @@ async def update_tune(tune_id: str, update: TuneUpdate):
 
 
 @router.post("/tunes/sync")
-async def sync_tunes():
+async def sync_tunes(_admin: UserRecord = Depends(require_admin)):
     """Sync database from ABC files in resources/tunes. One-time import tool."""
     results = db.sync_from_files()
     _invalidate_tune_cache()
@@ -271,7 +273,7 @@ class FetchUrlRequest(BaseModel):
 
 
 @router.post("/tunes/fetch-url", response_model=Tune)
-async def fetch_tune_from_url(request: FetchUrlRequest):
+async def fetch_tune_from_url(request: FetchUrlRequest, _admin: UserRecord = Depends(require_admin)):
     """Fetch ABC content from a URL, save to database, and return parsed tune."""
     url = request.url.strip()
 

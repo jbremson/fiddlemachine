@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { TuneSummary, SetSummary, SetDetail, SetItem } from '../types/tune';
 import { useAuth } from '../context/AuthContext';
+import { AdminPanel } from './AdminPanel';
+import { StatsPanel } from './StatsPanel';
 
 interface TuneListProps {
   tunes: TuneSummary[];
@@ -24,7 +26,9 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
   const [libraryExpanded, setLibraryExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const menuRef = useRef<HTMLDivElement>(null);
-  const { user, isLoggedIn, login, logout, loginWithEmail, verifyEmailCode } = useAuth();
+  const { user, isLoggedIn, isAdmin, login, logout, loginWithEmail, verifyEmailCode } = useAuth();
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [showStats, setShowStats] = useState(false);
 
   // Email login state
   const [showEmailLogin, setShowEmailLogin] = useState(false);
@@ -323,6 +327,28 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
           </button>
           {menuOpen && (
             <div className="menu-dropdown">
+              {isAdmin && (
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setShowAdmin(true);
+                    setMenuOpen(false);
+                  }}
+                >
+                  Admin
+                </button>
+              )}
+              {isLoggedIn && (
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setShowStats(true);
+                    setMenuOpen(false);
+                  }}
+                >
+                  My Stats
+                </button>
+              )}
               <button
                 className="menu-item"
                 onClick={() => {
@@ -412,7 +438,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
           </div>
         </div>
 
-        {isLoggedIn && (
+        {isLoggedIn && user?.role !== 'readonly' && (
           <div className="library-section my-sets-section">
             <button
               className="library-header"
@@ -731,6 +757,14 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
             </div>
           </div>
         </div>
+      )}
+
+      {showAdmin && isAdmin && (
+        <AdminPanel onClose={() => setShowAdmin(false)} />
+      )}
+
+      {showStats && isLoggedIn && (
+        <StatsPanel onClose={() => setShowStats(false)} />
       )}
 
       {showSetEditor && editingSet && (

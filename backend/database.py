@@ -53,6 +53,7 @@ class UserRecord:
     email: str
     name: str | None
     picture_url: str | None
+    role: str  # 'admin', 'user', or 'readonly'
     created_at: datetime
     last_login: datetime
 
@@ -136,6 +137,14 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
     if 'owner' not in columns:
         conn.execute("ALTER TABLE tunes ADD COLUMN owner TEXT")
 
+    # Migrate users table: add role column
+    users_cursor = conn.execute("PRAGMA table_info(users)")
+    users_columns = {row['name'] for row in users_cursor.fetchall()}
+    if users_columns and 'role' not in users_columns:
+        conn.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'")
+        # Make the first user (lowest id) an admin
+        conn.execute("UPDATE users SET role = 'admin' WHERE id = (SELECT MIN(id) FROM users)")
+
     conn.commit()
 
 
@@ -181,6 +190,7 @@ def init_db() -> None:
                 email TEXT NOT NULL,
                 name TEXT,
                 picture_url TEXT,
+                role TEXT NOT NULL DEFAULT 'user',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -238,6 +248,26 @@ def init_db() -> None:
         """)
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_set_items_set_id ON set_items(set_id)
+        """)
+
+        # Play events table for usage statistics
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS play_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                tune_ref TEXT NOT NULL,
+                tune_source TEXT NOT NULL,
+                tune_title TEXT NOT NULL,
+                bpm INTEGER,
+                transpose INTEGER,
+                duration_seconds REAL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_play_events_user_created
+            ON play_events(user_id, created_at)
         """)
 
         conn.commit()
@@ -606,12 +636,14 @@ def sync_from_files(tunes_dir: Path | None = None) -> dict[str, str]:
 
 def _row_to_user(row: sqlite3.Row) -> UserRecord:
     """Convert a database row to a UserRecord."""
+    keys = row.keys()
     return UserRecord(
         id=row['id'],
         google_id=row['google_id'],
         email=row['email'],
         name=row['name'],
         picture_url=row['picture_url'],
+        role=row['role'] if 'role' in keys else 'user',
         created_at=datetime.fromisoformat(row['created_at']),
         last_login=datetime.fromisoformat(row['last_login']),
     )
@@ -631,7 +663,7 @@ def _row_to_user_song(row: sqlite3.Row) -> UserSongRecord:
 
 
 def upsert_user(google_id: str, email: str, name: str | None, picture_url: str | None) -> UserRecord:
-    """Insert or update a user. Updates last_login on existing users."""
+    """Insert or update a user. Updates last_login on existing users. First user gets admin role."""
     with get_connection() as conn:
         conn.execute("PRAGMA foreign_keys = ON")
         existing = conn.execute("SELECT * FROM users WHERE google_id = ?", (google_id,)).fetchone()
@@ -643,9 +675,12 @@ def upsert_user(google_id: str, email: str, name: str | None, picture_url: str |
             conn.commit()
             row = conn.execute("SELECT * FROM users WHERE google_id = ?", (google_id,)).fetchone()
         else:
+            # First user becomes admin
+            user_count = conn.execute("SELECT COUNT(*) as cnt FROM users").fetchone()['cnt']
+            role = 'admin' if user_count == 0 else 'user'
             cursor = conn.execute(
-                "INSERT INTO users (google_id, email, name, picture_url) VALUES (?, ?, ?, ?)",
-                (google_id, email, name, picture_url)
+                "INSERT INTO users (google_id, email, name, picture_url, role) VALUES (?, ?, ?, ?, ?)",
+                (google_id, email, name, picture_url, role)
             )
             conn.commit()
             row = conn.execute("SELECT * FROM users WHERE id = ?", (cursor.lastrowid,)).fetchone()
@@ -978,6 +1013,169 @@ def reorder_set_items(set_id: int, item_ids: list[int]) -> list[SetItemRecord]:
         conn.execute("UPDATE user_sets SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (set_id,))
         conn.commit()
     return get_set_items(set_id)
+
+
+def get_all_users() -> list[UserRecord]:
+    """Get all users ordered by last_login desc."""
+    with get_connection() as conn:
+        rows = conn.execute("SELECT * FROM users ORDER BY last_login DESC").fetchall()
+        return [_row_to_user(row) for row in rows]
+
+
+def update_user_role(user_id: int, role: str) -> UserRecord | None:
+    """Update a user's role. Returns None if user not found."""
+    if role not in ('admin', 'user', 'readonly'):
+        raise ValueError(f"Invalid role: {role}")
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not row:
+            return None
+        conn.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
+        conn.commit()
+        row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        return _row_to_user(row)
+
+
+def get_user_sets_by_user_id(user_id: int) -> list[SetRecord]:
+    """Get sets for any user (admin use)."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM user_sets WHERE user_id = ? ORDER BY updated_at DESC",
+            (user_id,)
+        ).fetchall()
+        return [_row_to_set(row) for row in rows]
+
+
+def get_user_stats(user_id: int) -> dict:
+    """Get song count and set count for a user."""
+    with get_connection() as conn:
+        song_count = conn.execute(
+            "SELECT COUNT(*) as cnt FROM user_songs WHERE user_id = ?", (user_id,)
+        ).fetchone()['cnt']
+        set_count = conn.execute(
+            "SELECT COUNT(*) as cnt FROM user_sets WHERE user_id = ?", (user_id,)
+        ).fetchone()['cnt']
+        return {"song_count": song_count, "set_count": set_count}
+
+
+@dataclass
+class PlayEventRecord:
+    """A play event record."""
+    id: int
+    user_id: int
+    tune_ref: str
+    tune_source: str
+    tune_title: str
+    bpm: int | None
+    transpose: int | None
+    duration_seconds: float | None
+    created_at: datetime
+
+
+def insert_play_event(
+    user_id: int,
+    tune_ref: str,
+    tune_source: str,
+    tune_title: str,
+    bpm: int | None = None,
+    transpose: int | None = None,
+    duration_seconds: float | None = None,
+) -> PlayEventRecord:
+    """Log a play event."""
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """INSERT INTO play_events (user_id, tune_ref, tune_source, tune_title, bpm, transpose, duration_seconds)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, tune_ref, tune_source, tune_title, bpm, transpose, duration_seconds)
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM play_events WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        return PlayEventRecord(
+            id=row['id'], user_id=row['user_id'], tune_ref=row['tune_ref'],
+            tune_source=row['tune_source'], tune_title=row['tune_title'],
+            bpm=row['bpm'], transpose=row['transpose'],
+            duration_seconds=row['duration_seconds'],
+            created_at=datetime.fromisoformat(row['created_at']),
+        )
+
+
+def get_user_play_stats(user_id: int, days: int = 30) -> dict:
+    """Get aggregated play stats for a user over the last N days."""
+    with get_connection() as conn:
+        # Most played tunes
+        most_played = conn.execute(
+            """SELECT tune_title, tune_ref, tune_source, COUNT(*) as play_count,
+                      SUM(duration_seconds) as total_duration,
+                      AVG(bpm) as avg_bpm
+               FROM play_events
+               WHERE user_id = ? AND created_at >= datetime('now', ?)
+               GROUP BY tune_ref, tune_source
+               ORDER BY play_count DESC
+               LIMIT 10""",
+            (user_id, f'-{days} days')
+        ).fetchall()
+
+        # Total practice time
+        totals = conn.execute(
+            """SELECT COUNT(*) as total_sessions,
+                      COALESCE(SUM(duration_seconds), 0) as total_seconds
+               FROM play_events
+               WHERE user_id = ? AND created_at >= datetime('now', ?)""",
+            (user_id, f'-{days} days')
+        ).fetchone()
+
+        # This week
+        week_totals = conn.execute(
+            """SELECT COUNT(*) as total_sessions,
+                      COALESCE(SUM(duration_seconds), 0) as total_seconds
+               FROM play_events
+               WHERE user_id = ? AND created_at >= datetime('now', '-7 days')""",
+            (user_id,)
+        ).fetchone()
+
+        return {
+            "most_played": [
+                {
+                    "tune_title": row['tune_title'],
+                    "tune_ref": row['tune_ref'],
+                    "tune_source": row['tune_source'],
+                    "play_count": row['play_count'],
+                    "total_duration": row['total_duration'],
+                    "avg_bpm": round(row['avg_bpm']) if row['avg_bpm'] else None,
+                }
+                for row in most_played
+            ],
+            "period_days": days,
+            "total_sessions": totals['total_sessions'],
+            "total_seconds": totals['total_seconds'],
+            "week_sessions": week_totals['total_sessions'],
+            "week_seconds": week_totals['total_seconds'],
+        }
+
+
+def get_user_play_history(user_id: int, limit: int = 50) -> list[dict]:
+    """Get recent play events for a user."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT * FROM play_events
+               WHERE user_id = ?
+               ORDER BY created_at DESC
+               LIMIT ?""",
+            (user_id, limit)
+        ).fetchall()
+        return [
+            {
+                "id": row['id'],
+                "tune_ref": row['tune_ref'],
+                "tune_source": row['tune_source'],
+                "tune_title": row['tune_title'],
+                "bpm": row['bpm'],
+                "transpose": row['transpose'],
+                "duration_seconds": row['duration_seconds'],
+                "created_at": row['created_at'],
+            }
+            for row in rows
+        ]
 
 
 def print_tunes_table() -> None:

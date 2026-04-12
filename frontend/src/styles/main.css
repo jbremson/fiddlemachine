@@ -2459,3 +2459,192 @@ body {
   font-size: 0.85rem;
   margin: 0;
 }
+
+/* Admin Panel */
+.admin-popup {
+  max-width: 700px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.admin-table th {
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+.admin-user-row {
+  cursor: pointer;
+}
+
+.admin-user-row:hover {
+  background-color: var(--sidebar-bg);
+}
+
+.admin-table select {
+  padding: 0.2rem 0.3rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  background: var(--bg-color);
+}
+
+.admin-user-detail {
+  background: var(--sidebar-bg);
+  padding: 0.5rem 1rem !important;
+}
+
+.admin-user-sets {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.admin-set {
+  font-size: 0.85rem;
+}
+
+.admin-set ul {
+  margin: 0.25rem 0 0 1.2rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* Stats Panel */
+.stats-popup {
+  max-width: 500px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.stats-tabs {
+  display: flex;
+  gap: 0;
+  margin: 0.5rem 0 1rem;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.stats-tab {
+  padding: 0.4rem 1rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+}
+
+.stats-tab.active {
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
+  font-weight: 600;
+}
+
+.stats-totals {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.stat-card {
+  flex: 1;
+  background: var(--sidebar-bg);
+  border-radius: 8px;
+  padding: 0.75rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.stat-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.stats-most-played {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.stats-most-played li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.85rem;
+}
+
+.stats-rank {
+  color: var(--text-muted);
+  min-width: 1.5rem;
+}
+
+.stats-tune-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stats-play-count {
+  color: var(--primary-color);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.stats-duration,
+.stats-bpm {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.stats-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.stats-history-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.85rem;
+}
+
+.stats-meta {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.stats-date {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  margin-left: auto;
+}

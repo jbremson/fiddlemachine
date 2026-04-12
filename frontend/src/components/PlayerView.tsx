@@ -76,6 +76,7 @@ export function PlayerView({
   onPrevTune,
 }: PlayerViewProps) {
   const { isLoggedIn, logout } = useAuth();
+  const playStartTime = useRef<number | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showAbcEditor, setShowAbcEditor] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
@@ -109,6 +110,32 @@ export function PlayerView({
   const [addToSetMetronome, setAddToSetMetronome] = useState(metronomeEnabled);
   const [addToSetCountOff, setAddToSetCountOff] = useState(countOffEnabled);
   const [addToSetSubmitting, setAddToSetSubmitting] = useState(false);
+
+  // Track play events for stats
+  useEffect(() => {
+    if (playbackState === 'playing') {
+      playStartTime.current = Date.now();
+    } else if (playStartTime.current && (playbackState === 'stopped' || playbackState === 'paused')) {
+      const durationSeconds = (Date.now() - playStartTime.current) / 1000;
+      playStartTime.current = null;
+      // Only log if played for at least 3 seconds and user is logged in
+      if (isLoggedIn && durationSeconds >= 3) {
+        const isLibrary = !tune.id.startsWith('song_') && tune.id !== 'pasted' && tune.id !== 'uploaded';
+        fetch('/api/stats/play', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tune_ref: isLibrary ? tune.id : tune.id.replace('song_', ''),
+            tune_source: isLibrary ? 'library' : 'user_song',
+            tune_title: tune.title,
+            bpm,
+            transpose,
+            duration_seconds: Math.round(durationSeconds),
+          }),
+        }).catch(() => {}); // fire and forget
+      }
+    }
+  }, [playbackState]);
 
   const fetchNextTag = useCallback(async (name: string) => {
     if (!name.trim()) { setSaveTag('v1'); return; }

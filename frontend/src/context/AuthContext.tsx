@@ -5,11 +5,13 @@ interface User {
   email: string;
   name: string | null;
   picture_url: string | null;
+  role: string;
 }
 
 interface AuthContextType {
   user: User | null;
   isLoggedIn: boolean;
+  isAdmin: boolean;
   loading: boolean;
   login: () => void;
   logout: () => Promise<void>;
@@ -20,6 +22,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoggedIn: false,
+  isAdmin: false,
   loading: true,
   login: () => {},
   logout: async () => {},
@@ -85,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isLoggedIn: !!user, loading, login, logout, loginWithEmail, verifyEmailCode }}>
+    <AuthContext.Provider value={{ user, isLoggedIn: !!user, isAdmin: user?.role === 'admin', loading, login, logout, loginWithEmail, verifyEmailCode }}>
       {children}
     </AuthContext.Provider>
   );

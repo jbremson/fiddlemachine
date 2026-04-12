@@ -86,6 +86,22 @@ def require_user(user: UserRecord | None = Depends(get_current_user)) -> UserRec
     return user
 
 
+def require_admin(user: UserRecord = Depends(require_user)) -> UserRecord:
+    """Dependency that requires admin role."""
+    if user.role != 'admin':
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+
+def require_role(*roles: str):
+    """Dependency factory for flexible role checking."""
+    def _check(user: UserRecord = Depends(require_user)) -> UserRecord:
+        if user.role not in roles:
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
+        return user
+    return _check
+
+
 # --- OAuth endpoints ---
 
 @auth_router.get("/auth/debug")
@@ -165,6 +181,7 @@ async def me(request: Request):
         "email": user.email,
         "name": user.name,
         "picture_url": user.picture_url,
+        "role": user.role,
     }
 
 
@@ -227,7 +244,7 @@ async def email_verify(body: EmailVerify):
     _is_https = bool(os.environ.get("OAUTH_REDIRECT_URI", "").startswith("https"))
     response = JSONResponse(content={
         "ok": True,
-        "user": {"id": user.id, "email": user.email, "name": user.name, "picture_url": user.picture_url},
+        "user": {"id": user.id, "email": user.email, "name": user.name, "picture_url": user.picture_url, "role": user.role},
     })
     response.set_cookie(
         key=COOKIE_NAME,
