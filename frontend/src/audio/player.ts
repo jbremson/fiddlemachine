@@ -238,50 +238,35 @@ class TunePlayer {
       const bounds = this.getActiveSectionBounds();
       const midiTrack = this.midiData.midi.tracks.find(t => t.notes.length > 0);
       const ppq = this.midiData.midi.header.ppq;
-      const midiNoteCount = midiTrack
-        ? midiTrack.notes.filter(n => {
-            const beat = n.ticks / ppq;
-            return bounds && beat >= bounds.startBeat && beat < bounds.endBeat;
-          }).length
+      const allMidiNotes = midiTrack ? midiTrack.notes.length : 0;
+      const midiActualEnd = midiTrack
+        ? Math.max(...midiTrack.notes.map(n => (n.ticks + n.durationTicks) / ppq))
         : 0;
       const customNoteCount = sections.reduce(
         (sum, s) => sum + (s.playback_notes || s.notes).length, 0
       );
+      const customTotalBeats = sections.reduce(
+        (sum, s) => sum + Math.max(...(s.playback_notes || s.notes).map(n => n.start_time + n.duration)), 0
+      );
       console.log('[MIDI debug]', {
         tune: this.tune?.title,
         sectionMode: this.sectionMode,
+        isFirstPlay,
         pickupBeats: this.pickupBeats,
         leadInOffset,
         midiBounds: bounds,
-        midiSectionDuration: bounds ? bounds.endBeat - bounds.startBeat : 0,
-        midiNoteCount,
+        midiActualEnd,
+        allMidiNotes,
+        customTotalBeats,
+        customNoteCount,
         customSections: sections.map(s => ({
           name: s.name,
           noteCount: (s.playback_notes || s.notes).length,
           duration: Math.max(...(s.playback_notes || s.notes).map(n => n.start_time + n.duration)),
           repeat: s.repeat,
         })),
-        customTotalBeats: sections.reduce(
-          (sum, s) => sum + Math.max(...(s.playback_notes || s.notes).map(n => n.start_time + n.duration)), 0
-        ),
-        customNoteCount,
         midiTracks: this.midiData.midi.tracks.map(t => ({ name: t.name, notes: t.notes.length })),
-        expect: {
-          durationMatch: bounds
-            ? `midiSectionDuration(${(bounds.endBeat - bounds.startBeat).toFixed(1)}) should ≈ customTotalBeats(${sections.reduce((sum, s) => sum + Math.max(...(s.playback_notes || s.notes).map(n => n.start_time + n.duration)), 0).toFixed(1)}) for full mode`
-            : 'no bounds',
-          noteCountCheck: `midiNoteCount(${midiNoteCount}) should be >= customNoteCount(${customNoteCount})`,
-          sectionBoundsCheck: this.sectionMode !== 'full' && bounds
-            ? (() => {
-                const matchingCustom = sections.find(s => s.name === this.sectionMode);
-                if (!matchingCustom) return 'no matching custom section';
-                const customDur = Math.max(...(matchingCustom.playback_notes || matchingCustom.notes).map(n => n.start_time + n.duration));
-                const midiDur = bounds.endBeat - bounds.startBeat;
-                const diff = Math.abs(midiDur - customDur);
-                return `sectionDurationDiff=${diff.toFixed(1)} beats (midi=${midiDur.toFixed(1)}, custom=${customDur.toFixed(1)})${diff > 1 ? ' ⚠️ MISMATCH' : ' ✓'}`;
-              })()
-            : 'full mode or no bounds',
-        },
+        durationDiff: `midi=${midiActualEnd.toFixed(1)} vs custom=${customTotalBeats.toFixed(1)}, diff=${Math.abs(midiActualEnd - customTotalBeats).toFixed(1)}`,
       });
       sectionOffsetBeats = this.scheduleMidiNotes(synth, transport, leadInOffset);
     } else {
@@ -384,20 +369,29 @@ class TunePlayer {
     if (!bounds) return leadInOffset;
 
     const { startBeat, endBeat } = bounds;
+    const isFullMode = this.sectionMode === 'full';
+
+    let maxEndBeat = 0;
 
     track.notes.forEach((midiNote) => {
       // Convert tick timing to beats
       const noteBeat = midiNote.ticks / ppq;
       const durationBeats = midiNote.durationTicks / ppq;
 
-      // Filter by active section bounds
-      if (noteBeat < startBeat || noteBeat >= endBeat) return;
+      // In full mode, play all MIDI notes (avoid custom/MIDI boundary mismatch).
+      // In section mode, filter by bounds.
+      if (!isFullMode && (noteBeat < startBeat || noteBeat >= endBeat)) return;
 
       // Shift note to start from 0 relative to section start
-      const relativeBeat = noteBeat - startBeat;
+      const offsetBeat = isFullMode ? 0 : startBeat;
+      const relativeBeat = noteBeat - offsetBeat;
       const noteTimeBeats = leadInOffset + relativeBeat;
       const noteTimeSecs = this.beatsToSeconds(noteTimeBeats);
       const durationSecs = Math.max(0.05, this.beatsToSeconds(durationBeats));
+
+      // Track actual end for accurate total duration
+      const noteEndBeat = relativeBeat + durationBeats;
+      if (noteEndBeat > maxEndBeat) maxEndBeat = noteEndBeat;
 
       // Apply transpose/octave shift
       const transposedMidi = midiNote.midi + this.transpose + (this.octaveShift * 12);
@@ -409,8 +403,8 @@ class TunePlayer {
       this.scheduledEvents.push(eventId);
     });
 
-    // Total duration = lead-in + section length
-    return leadInOffset + (endBeat - startBeat);
+    // Use actual note content duration, not theoretical section bounds
+    return leadInOffset + maxEndBeat;
   }
 
   private getActiveSectionBounds(): { startBeat: number; endBeat: number } | null {
