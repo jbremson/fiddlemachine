@@ -7,16 +7,17 @@ from .tune import Tune, Section, Note
 from .section import detect_sections
 
 
-def parse_abc(abc_content: str, tune_id: str) -> Tune:
+def parse_abc(abc_content: str, tune_id: str, return_score: bool = False):
     """
     Parse ABC notation and return structured tune data.
 
     Args:
         abc_content: ABC notation string
         tune_id: Unique identifier for the tune
+        return_score: If True, return (Tune, score) tuple
 
     Returns:
-        Tune object with parsed note data
+        Tune object, or (Tune, score) tuple if return_score=True
     """
     # Parse with music21
     score = converter.parse(abc_content, format='abc')
@@ -42,7 +43,7 @@ def parse_abc(abc_content: str, tune_id: str) -> Tune:
     # Calculate pickup beats for lead-in calculation
     pickup_beats = _calculate_pickup_beats(sections, time_sig)
 
-    return Tune(
+    tune = Tune(
         id=tune_id,
         title=title,
         key=key_sig,
@@ -52,6 +53,10 @@ def parse_abc(abc_content: str, tune_id: str) -> Tune:
         sections=sections,
         pickup_beats=pickup_beats
     )
+
+    if return_score:
+        return tune, score
+    return tune
 
 
 def _extract_title(abc: str) -> str:
@@ -397,6 +402,35 @@ def _expand_playback_notes(sections: list[Section], time_sig: str) -> list[Secti
         ))
 
     return expanded_sections
+
+
+def get_section_beat_boundaries(tune: Tune) -> list[dict]:
+    """Compute section beat boundaries from a parsed Tune's playback_notes.
+
+    Returns a list of dicts like:
+        [{"name": "A", "start_beat": 0.0, "end_beat": 32.0}, ...]
+
+    Accumulates offsets across sections the same way the frontend's
+    scheduleNotes() does.
+    """
+    boundaries = []
+    current_offset = 0.0
+
+    for section in tune.sections:
+        notes = section.playback_notes or section.notes
+        if notes:
+            section_duration = max(n.start_time + n.duration for n in notes)
+        else:
+            section_duration = 0.0
+
+        boundaries.append({
+            "name": section.name,
+            "start_beat": current_offset,
+            "end_beat": current_offset + section_duration,
+        })
+        current_offset += section_duration
+
+    return boundaries
 
 
 def parse_abc_file(filepath: str) -> Tune:

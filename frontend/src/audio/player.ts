@@ -1,7 +1,10 @@
 import * as Tone from 'tone';
 import { Section, Tune, PlaybackState, SectionMode } from '../types/tune';
-import { createSynth, getSynth, createMetronomeSynth, getMetronomeSynth, SynthType, MetronomeType } from './synth';
+import { createSynth, createMetronomeSynth, getMetronomeSynth, SynthType, MetronomeType, PlaybackEngine, setPlaybackEngine, getActiveInstrument, ensureActiveInstrument } from './synth';
 import { convertPitch } from './pitch';
+import { MidiData, fetchMidiData, fetchMidiDataFromAbc } from './midi-cache';
+
+type ToneTransport = ReturnType<typeof Tone.getTransport>;
 
 type PlaybackCallback = (state: PlaybackState) => void;
 
@@ -24,10 +27,28 @@ class TunePlayer {
   private countOffEnabled: boolean = true;
   private countOffBeats: number = 4;  // Beats per bar (4 for 4/4, 3 for 3/4)
   private pickupBeats: number = 0;  // Duration of pickup notes in beats
+  private engine: PlaybackEngine = 'synth';
+  private soundfontLoading: boolean = false;
+  private midiData: MidiData | null = null;
+  private useMidi: boolean = false;
 
   async initialize(): Promise<void> {
     await Tone.start();
     createSynth(this.synthType);
+  }
+
+  setPlaybackEngine(engine: PlaybackEngine): void {
+    this.engine = engine;
+    this.useMidi = (engine === 'soundfont');
+    setPlaybackEngine(engine);
+  }
+
+  getPlaybackEngine(): PlaybackEngine {
+    return this.engine;
+  }
+
+  isSoundfontLoading(): boolean {
+    return this.soundfontLoading;
   }
 
   setSynthType(type: SynthType): void {
@@ -50,6 +71,7 @@ class TunePlayer {
   setTune(tune: Tune): void {
     this.stop();
     this.tune = tune;
+    this.midiData = null;
     // Don't override user's BPM setting when loading a tune
     Tone.getTransport().bpm.value = this.bpm;
     // Parse time signature for count-off
@@ -169,7 +191,7 @@ class TunePlayer {
   }
 
   private scheduleNotes(isFirstPlay: boolean = true): void {
-    const synth = getSynth();
+    const synth = getActiveInstrument();
     if (!synth || !this.tune) return;
 
     this.clearScheduledEvents();
@@ -211,36 +233,60 @@ class TunePlayer {
       }
     }
 
-    sections.forEach((section) => {
-      // Use playback_notes if available (repeats pre-expanded), otherwise fall back to notes
-      const notesToPlay = section.playback_notes || section.notes;
-
-      // Calculate section duration from the notes we'll play
-      const sectionBeats = notesToPlay.length > 0
-        ? Math.max(...notesToPlay.map(n => n.start_time + n.duration))
-        : 4;
-
-      // Schedule all notes (repeats already expanded in playback_notes)
-      notesToPlay.forEach((note) => {
-        const noteTimeBeats = sectionOffsetBeats + note.start_time;
-        const durationBeats = note.duration;
-
-        // Convert to seconds
-        const noteTimeSecs = this.beatsToSeconds(noteTimeBeats);
-        const durationSecs = Math.max(0.1, this.beatsToSeconds(durationBeats));
-
-        const eventId = transport.schedule((time) => {
-          // Convert ABC pitch notation to Tone.js format
-          const pitch = this.convertPitchWithTranspose(note.pitch);
-          synth.triggerAttackRelease(pitch, durationSecs, time);
-        }, noteTimeSecs);
-
-        this.scheduledEvents.push(eventId);
+    // TEMP DEBUG: Log scheduling source comparison
+    if (this.useMidi && this.midiData) {
+      const bounds = this.getActiveSectionBounds();
+      const midiTrack = this.midiData.midi.tracks.find(t => t.notes.length > 0);
+      const ppq = this.midiData.midi.header.ppq;
+      const midiNoteCount = midiTrack
+        ? midiTrack.notes.filter(n => {
+            const beat = n.ticks / ppq;
+            return bounds && beat >= bounds.startBeat && beat < bounds.endBeat;
+          }).length
+        : 0;
+      const customNoteCount = sections.reduce(
+        (sum, s) => sum + (s.playback_notes || s.notes).length, 0
+      );
+      console.log('[MIDI debug]', {
+        tune: this.tune?.title,
+        sectionMode: this.sectionMode,
+        pickupBeats: this.pickupBeats,
+        leadInOffset,
+        midiBounds: bounds,
+        midiSectionDuration: bounds ? bounds.endBeat - bounds.startBeat : 0,
+        midiNoteCount,
+        customSections: sections.map(s => ({
+          name: s.name,
+          noteCount: (s.playback_notes || s.notes).length,
+          duration: Math.max(...(s.playback_notes || s.notes).map(n => n.start_time + n.duration)),
+          repeat: s.repeat,
+        })),
+        customTotalBeats: sections.reduce(
+          (sum, s) => sum + Math.max(...(s.playback_notes || s.notes).map(n => n.start_time + n.duration)), 0
+        ),
+        customNoteCount,
+        midiTracks: this.midiData.midi.tracks.map(t => ({ name: t.name, notes: t.notes.length })),
+        expect: {
+          durationMatch: bounds
+            ? `midiSectionDuration(${(bounds.endBeat - bounds.startBeat).toFixed(1)}) should ≈ customTotalBeats(${sections.reduce((sum, s) => sum + Math.max(...(s.playback_notes || s.notes).map(n => n.start_time + n.duration)), 0).toFixed(1)}) for full mode`
+            : 'no bounds',
+          noteCountCheck: `midiNoteCount(${midiNoteCount}) should be >= customNoteCount(${customNoteCount})`,
+          sectionBoundsCheck: this.sectionMode !== 'full' && bounds
+            ? (() => {
+                const matchingCustom = sections.find(s => s.name === this.sectionMode);
+                if (!matchingCustom) return 'no matching custom section';
+                const customDur = Math.max(...(matchingCustom.playback_notes || matchingCustom.notes).map(n => n.start_time + n.duration));
+                const midiDur = bounds.endBeat - bounds.startBeat;
+                const diff = Math.abs(midiDur - customDur);
+                return `sectionDurationDiff=${diff.toFixed(1)} beats (midi=${midiDur.toFixed(1)}, custom=${customDur.toFixed(1)})${diff > 1 ? ' ⚠️ MISMATCH' : ' ✓'}`;
+              })()
+            : 'full mode or no bounds',
+        },
       });
-
-      // Add section duration to offset
-      sectionOffsetBeats += sectionBeats;
-    });
+      sectionOffsetBeats = this.scheduleMidiNotes(synth, transport, leadInOffset);
+    } else {
+      sectionOffsetBeats = this.scheduleCustomNotes(synth, transport, sectionOffsetBeats, sections);
+    }
 
     // Store total duration for progress calculation (includes count-off)
     this.totalDurationSecs = this.beatsToSeconds(sectionOffsetBeats);
@@ -289,6 +335,107 @@ class TunePlayer {
     this.scheduledEvents.push(endEventId);
   }
 
+  private scheduleCustomNotes(
+    synth: Tone.PolySynth | Tone.Sampler,
+    transport: ToneTransport,
+    sectionOffsetBeats: number,
+    sections: Section[],
+  ): number {
+    sections.forEach((section) => {
+      const notesToPlay = section.playback_notes || section.notes;
+      const sectionBeats = notesToPlay.length > 0
+        ? Math.max(...notesToPlay.map(n => n.start_time + n.duration))
+        : 4;
+
+      notesToPlay.forEach((note) => {
+        const noteTimeBeats = sectionOffsetBeats + note.start_time;
+        const durationBeats = note.duration;
+        const noteTimeSecs = this.beatsToSeconds(noteTimeBeats);
+        const durationSecs = Math.max(0.1, this.beatsToSeconds(durationBeats));
+
+        const eventId = transport.schedule((time) => {
+          const pitch = this.convertPitchWithTranspose(note.pitch);
+          synth.triggerAttackRelease(pitch, durationSecs, time);
+        }, noteTimeSecs);
+        this.scheduledEvents.push(eventId);
+      });
+
+      sectionOffsetBeats += sectionBeats;
+    });
+    return sectionOffsetBeats;
+  }
+
+  private scheduleMidiNotes(
+    synth: Tone.PolySynth | Tone.Sampler,
+    transport: ToneTransport,
+    leadInOffset: number,
+  ): number {
+    if (!this.midiData) return leadInOffset;
+
+    const midi = this.midiData.midi;
+    const ppq = midi.header.ppq;
+
+    // Find first track with notes
+    const track = midi.tracks.find(t => t.notes.length > 0);
+    if (!track) return leadInOffset;
+
+    // Get active section bounds
+    const bounds = this.getActiveSectionBounds();
+    if (!bounds) return leadInOffset;
+
+    const { startBeat, endBeat } = bounds;
+
+    track.notes.forEach((midiNote) => {
+      // Convert tick timing to beats
+      const noteBeat = midiNote.ticks / ppq;
+      const durationBeats = midiNote.durationTicks / ppq;
+
+      // Filter by active section bounds
+      if (noteBeat < startBeat || noteBeat >= endBeat) return;
+
+      // Shift note to start from 0 relative to section start
+      const relativeBeat = noteBeat - startBeat;
+      const noteTimeBeats = leadInOffset + relativeBeat;
+      const noteTimeSecs = this.beatsToSeconds(noteTimeBeats);
+      const durationSecs = Math.max(0.05, this.beatsToSeconds(durationBeats));
+
+      // Apply transpose/octave shift
+      const transposedMidi = midiNote.midi + this.transpose + (this.octaveShift * 12);
+      const pitch = Tone.Frequency(transposedMidi, 'midi').toNote();
+
+      const eventId = transport.schedule((time) => {
+        synth.triggerAttackRelease(pitch, durationSecs, time, midiNote.velocity);
+      }, noteTimeSecs);
+      this.scheduledEvents.push(eventId);
+    });
+
+    // Total duration = lead-in + section length
+    return leadInOffset + (endBeat - startBeat);
+  }
+
+  private getActiveSectionBounds(): { startBeat: number; endBeat: number } | null {
+    if (!this.midiData) return null;
+    const sections = this.midiData.sections;
+    if (sections.length === 0) return null;
+
+    switch (this.sectionMode) {
+      case 'A': {
+        const sec = sections.find(s => s.name === 'A');
+        return sec ? { startBeat: sec.start_beat, endBeat: sec.end_beat } : null;
+      }
+      case 'B': {
+        const sec = sections.find(s => s.name === 'B');
+        return sec ? { startBeat: sec.start_beat, endBeat: sec.end_beat } : null;
+      }
+      case 'full':
+      default:
+        return {
+          startBeat: sections[0].start_beat,
+          endBeat: sections[sections.length - 1].end_beat,
+        };
+    }
+  }
+
   private convertPitchWithTranspose(pitch: string): string {
     return convertPitch(pitch, this.transpose, this.octaveShift);
   }
@@ -305,7 +452,31 @@ class TunePlayer {
     if (!this.tune) return;
 
     await Tone.start();
-    createSynth(this.synthType);
+
+    // Load the appropriate instrument
+    if (this.engine === 'soundfont') {
+      this.soundfontLoading = true;
+      this.onStateChange?.('stopped'); // trigger re-render to show loading
+      await ensureActiveInstrument();
+      this.soundfontLoading = false;
+    } else {
+      createSynth(this.synthType);
+    }
+
+    // Fetch MIDI data if using soundfont engine
+    if (this.useMidi && !this.midiData && this.tune) {
+      try {
+        const tuneId = this.tune.id;
+        const isPasted = tuneId === 'pasted' || tuneId === 'uploaded';
+        this.midiData = isPasted
+          ? await fetchMidiDataFromAbc(this.tune.abc, tuneId)
+          : await fetchMidiData(tuneId);
+      } catch (e) {
+        console.warn('MIDI fetch failed, falling back to custom notes:', e);
+        this.midiData = null;
+      }
+    }
+
     if (this.metronomeEnabled || this.countOffEnabled) {
       createMetronomeSynth(this.metronomeType);
     }

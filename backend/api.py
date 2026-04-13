@@ -1,12 +1,16 @@
 """FastAPI routes for tune data."""
 
+import base64
+import io
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from music21 import converter
 from pydantic import BaseModel
 
-from .abc_parser import parse_abc  # used by individual tune endpoints
+from .abc_parser import parse_abc, get_section_beat_boundaries
 from .auth import require_admin, require_user
 from .database import UserRecord
 from .tune import Tune
@@ -81,6 +85,87 @@ async def get_tune(tune_id: str):
         return tune
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to parse tune ABC: {str(e)}")
+
+
+@router.get("/tunes/{tune_id}/midi")
+async def get_tune_midi(tune_id: str, transpose: int = Query(0, ge=-12, le=12)):
+    """Export a tune as a MIDI file.
+
+    Optional transpose parameter shifts pitch by N semitones.
+    """
+    db.init_db()
+    record = db.get_tune(tune_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Tune not found")
+
+    try:
+        score = converter.parse(record.abc_content, format='abc')
+        if transpose != 0:
+            score = score.transpose(transpose)
+        midi_buffer = io.BytesIO()
+        score.write('midi', fp=midi_buffer)
+        midi_buffer.seek(0)
+        filename = f"{tune_id}.mid"
+        return StreamingResponse(
+            midi_buffer,
+            media_type="audio/midi",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate MIDI: {str(e)}")
+
+
+class MidiDataResponse(BaseModel):
+    """MIDI data with section boundaries for playback."""
+    midi_base64: str
+    sections: list[dict]
+    pickup_beats: float
+    default_tempo: int
+
+
+def _generate_midi_data(abc_content: str, tune_id: str) -> MidiDataResponse:
+    """Generate MIDI data response from ABC content."""
+    tune, score = parse_abc(abc_content, tune_id, return_score=True)
+    midi_buffer = io.BytesIO()
+    score.write('midi', fp=midi_buffer)
+    midi_bytes = midi_buffer.getvalue()
+    midi_b64 = base64.b64encode(midi_bytes).decode('ascii')
+    sections = get_section_beat_boundaries(tune)
+    return MidiDataResponse(
+        midi_base64=midi_b64,
+        sections=sections,
+        pickup_beats=tune.pickup_beats,
+        default_tempo=tune.default_tempo,
+    )
+
+
+@router.get("/tunes/{tune_id}/midi-data", response_model=MidiDataResponse)
+async def get_tune_midi_data(tune_id: str):
+    """Get MIDI data with section boundaries for in-browser playback."""
+    db.init_db()
+    record = db.get_tune(tune_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Tune not found")
+    try:
+        return _generate_midi_data(record.abc_content, tune_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate MIDI data: {str(e)}")
+
+
+class MidiDataRequest(BaseModel):
+    """Request body for generating MIDI data from ABC content."""
+    abc: str
+    id: str | None = None
+
+
+@router.post("/tunes/midi-data", response_model=MidiDataResponse)
+async def generate_midi_data(request: MidiDataRequest):
+    """Generate MIDI data from posted ABC content."""
+    tune_id = request.id or "pasted"
+    try:
+        return _generate_midi_data(request.abc, tune_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to generate MIDI data: {str(e)}")
 
 
 class ParseRequest(BaseModel):

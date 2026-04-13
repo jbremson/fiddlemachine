@@ -1,12 +1,15 @@
-import { SynthType, getSynthTypes } from '../audio/synth';
+import { SynthType, getSynthTypes, PlaybackEngine } from '../audio/synth';
 
 interface SettingsPanelProps {
   synthType: SynthType;
   onSynthTypeChange: (type: SynthType) => void;
+  playbackEngine: PlaybackEngine;
+  onPlaybackEngineChange: (engine: PlaybackEngine) => void;
+  soundfontLoading: boolean;
   onClose: () => void;
 }
 
-export function SettingsPanel({ synthType, onSynthTypeChange, onClose }: SettingsPanelProps) {
+export function SettingsPanel({ synthType, onSynthTypeChange, playbackEngine, onPlaybackEngineChange, soundfontLoading, onClose }: SettingsPanelProps) {
   const synthTypes = getSynthTypes();
 
   return (
@@ -16,6 +19,18 @@ export function SettingsPanel({ synthType, onSynthTypeChange, onClose }: Setting
         <button className="settings-close" onClick={onClose} aria-label="Close settings">×</button>
       </div>
       <div className="settings-content">
+        <div className="settings-row">
+          <label htmlFor="engine-select">Engine:</label>
+          <select
+            id="engine-select"
+            value={playbackEngine}
+            onChange={(e) => onPlaybackEngineChange(e.target.value as PlaybackEngine)}
+          >
+            <option value="synth">Basic Synth</option>
+            <option value="soundfont">SoundFont (HD)</option>
+          </select>
+          {soundfontLoading && <span className="loading-indicator">Loading...</span>}
+        </div>
         <div className="settings-row">
           <label htmlFor="sound-select">Sound:</label>
           <select

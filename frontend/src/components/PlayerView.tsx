@@ -9,7 +9,7 @@ import { RepeatSelector } from './RepeatSelector';
 import { LoopButton } from './LoopButton';
 import { SettingsPanel } from './SettingsPanel';
 import { Tune, TuneInfo, PlaybackState, SetDetail, SetSummary } from '../types/tune';
-import { SynthType, getSynthTypes } from '../audio/synth';
+import { SynthType, getSynthTypes, PlaybackEngine } from '../audio/synth';
 import { useAuth } from '../context/AuthContext';
 
 interface PlayerViewProps {
@@ -23,6 +23,9 @@ interface PlayerViewProps {
   octaveShift: number;
   metronomeEnabled: boolean;
   countOffEnabled: boolean;
+  playbackEngine: PlaybackEngine;
+  soundfontLoading: boolean;
+  onPlaybackEngineChange: (engine: PlaybackEngine) => void;
   error: string | null;
   onBack: () => void;
   onPlay: () => void;
@@ -55,6 +58,9 @@ export function PlayerView({
   octaveShift,
   metronomeEnabled,
   countOffEnabled,
+  playbackEngine,
+  soundfontLoading,
+  onPlaybackEngineChange,
   error,
   onBack,
   onPlay,
@@ -382,6 +388,9 @@ export function PlayerView({
             <SettingsPanel
               synthType={synthType}
               onSynthTypeChange={onToneChange}
+              playbackEngine={playbackEngine}
+              onPlaybackEngineChange={onPlaybackEngineChange}
+              soundfontLoading={soundfontLoading}
               onClose={() => setShowSettings(false)}
             />
           )}

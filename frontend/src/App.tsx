@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { TuneList } from './components/TuneList';
 import { PlayerView } from './components/PlayerView';
 import { tunePlayer } from './audio/player';
-import { SynthType } from './audio/synth';
+import { SynthType, PlaybackEngine } from './audio/synth';
 import { Tune, TuneSummary, PlaybackState, SetDetail, SetItem } from './types/tune';
 import './styles/main.css';
 
@@ -20,6 +20,10 @@ export function App() {
   const [octaveShift, setOctaveShift] = useState(0);
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
   const [countOffEnabled, setCountOffEnabled] = useState(true);
+  const [playbackEngine, setPlaybackEngine] = useState<PlaybackEngine>(
+    () => (localStorage.getItem('playbackEngine') as PlaybackEngine) || 'synth'
+  );
+  const [soundfontLoading, setSoundfontLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeSet, setActiveSet] = useState<SetDetail | null>(null);
   const [activeSetIndex, setActiveSetIndex] = useState(0);
@@ -46,9 +50,10 @@ export function App() {
     fetchTunes();
   }, []);
 
-  // Initialize audio player callbacks
+  // Initialize audio player callbacks and restore engine
   useEffect(() => {
     tunePlayer.setOnStateChange(setPlaybackState);
+    tunePlayer.setPlaybackEngine(playbackEngine);
   }, []);
 
   // Load selected tune
@@ -140,8 +145,10 @@ export function App() {
 
   const handlePlay = useCallback(async () => {
     await initializeAudio();
-    tunePlayer.play();
-  }, [initializeAudio]);
+    setSoundfontLoading(tunePlayer.isSoundfontLoading() || playbackEngine === 'soundfont');
+    await tunePlayer.play();
+    setSoundfontLoading(false);
+  }, [initializeAudio, playbackEngine]);
 
   const handlePause = useCallback(() => {
     tunePlayer.pause();
@@ -192,6 +199,12 @@ export function App() {
   const handleCountOffToggle = useCallback((enabled: boolean) => {
     setCountOffEnabled(enabled);
     tunePlayer.setCountOff(enabled);
+  }, []);
+
+  const handlePlaybackEngineChange = useCallback((engine: PlaybackEngine) => {
+    setPlaybackEngine(engine);
+    localStorage.setItem('playbackEngine', engine);
+    tunePlayer.setPlaybackEngine(engine);
   }, []);
 
   // Reload tune from edited ABC
@@ -308,6 +321,9 @@ export function App() {
       octaveShift={octaveShift}
       metronomeEnabled={metronomeEnabled}
       countOffEnabled={countOffEnabled}
+      playbackEngine={playbackEngine}
+      soundfontLoading={soundfontLoading}
+      onPlaybackEngineChange={handlePlaybackEngineChange}
       error={error}
       onBack={handleBack}
       onPlay={handlePlay}

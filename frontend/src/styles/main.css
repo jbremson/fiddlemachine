@@ -1367,6 +1367,12 @@ body {
   font-size: 0.9rem;
 }
 
+.loading-indicator {
+  font-size: 0.8rem;
+  color: #b8860b;
+  font-style: italic;
+}
+
 /* Key Selector - Dropdown style */
 .key-selector {
   display: flex;

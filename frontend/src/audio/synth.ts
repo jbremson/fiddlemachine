@@ -1,13 +1,16 @@
 import * as Tone from 'tone';
+import { loadSoundFontSampler, getCachedSampler, disposeSoundFontSamplers } from './soundfont';
 
 export type SynthType = 'fiddle' | 'piano' | 'clarinet' | 'whistle' | 'pluck';
 export type MetronomeType = 'click1' | 'click2' | 'click3';
+export type PlaybackEngine = 'synth' | 'soundfont';
 
 let synth: Tone.PolySynth | null = null;
 let reverb: Tone.Reverb | null = null;
 let currentSynthType: SynthType = 'fiddle';
 let metronomeSynth: Tone.Synth | Tone.MembraneSynth | Tone.NoiseSynth | null = null;
 let currentMetronomeType: MetronomeType = 'click1';
+let currentEngine: PlaybackEngine = 'synth';
 
 const SYNTH_CONFIGS: Record<SynthType, { name: string; config: () => Tone.PolySynth }> = {
   fiddle: {
@@ -107,6 +110,28 @@ export function getSynth(): Tone.PolySynth | null {
   return synth;
 }
 
+export function getPlaybackEngine(): PlaybackEngine {
+  return currentEngine;
+}
+
+export function setPlaybackEngine(engine: PlaybackEngine): void {
+  currentEngine = engine;
+}
+
+export function getActiveInstrument(): Tone.PolySynth | Tone.Sampler | null {
+  if (currentEngine === 'soundfont') {
+    return getCachedSampler(currentSynthType);
+  }
+  return synth;
+}
+
+export async function ensureActiveInstrument(): Promise<Tone.PolySynth | Tone.Sampler | null> {
+  if (currentEngine === 'soundfont') {
+    return loadSoundFontSampler(currentSynthType);
+  }
+  return createSynth(currentSynthType);
+}
+
 export function disposeSynth(): void {
   if (synth) {
     synth.dispose();
@@ -120,6 +145,7 @@ export function disposeSynth(): void {
     metronomeSynth.dispose();
     metronomeSynth = null;
   }
+  disposeSoundFontSamplers();
 }
 
 // Three metronome click options - all single tone
