@@ -47,17 +47,12 @@ export function loadSoundFontSampler(type: SynthType): Promise<Tone.Sampler> {
   return new Promise((resolve, reject) => {
     const urls: Record<string, string> = {};
     for (const note of SAMPLE_NOTES) {
-      // MusyngKite format: note name with sharp as %23, e.g. "C4" -> "C4.ogg"
-      // Flats need converting to sharps for URL: Eb -> Ds, Gb -> Fs
-      const urlNote = note
-        .replace('Eb', 'Ds')
-        .replace('Gb', 'Fs');
-      urls[note] = `${urlNote}.ogg`;
+      urls[note] = `${note}.mp3`;
     }
 
     const sampler = new Tone.Sampler({
       urls,
-      baseUrl: `${SOUNDFONT_BASE_URL}/${instrument}-ogg/`,
+      baseUrl: `${SOUNDFONT_BASE_URL}/${instrument}-mp3/`,
       volume: -6,
       onload: () => {
         sampler.connect(getSoundfontReverb());
