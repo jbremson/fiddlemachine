@@ -5,22 +5,22 @@
 }
 
 :root {
-  --primary-color: #8B4513;
-  --primary-light: #A0522D;
-  --primary-dark: #6B3410;
-  --bg-color: #FDF8F3;
-  --sidebar-bg: #F5EDE4;
-  --text-color: #3D2914;
-  --text-muted: #7A6552;
-  --border-color: #E0D4C4;
-  --accent-gold: #D4A056;
+  --primary-color: #18181b;     /* Zinc 900 */
+  --primary-light: #3f3f46;     /* Zinc 700 */
+  --primary-dark: #09090b;      /* Zinc 950 */
+  --bg-color: #f4f4f5;          /* Zinc 100 */
+  --sidebar-bg: #ffffff;        /* White */
+  --text-color: #27272a;        /* Zinc 800 */
+  --text-muted: #71717a;        /* Zinc 500 */
+  --border-color: #e4e4e7;      /* Zinc 200 */
+  --accent-gold: #0ea5e9;       /* Sky blue */
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
   background-color: var(--bg-color);
   color: var(--text-color);
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 .app {
@@ -30,13 +30,19 @@ body {
 }
 
 .app-header {
-  background: var(--primary-color);
-  color: white;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--text-color);
+  border-bottom: 1px solid var(--border-color);
   padding: 0.75rem 2rem;
   text-align: center;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 50;
 }
 
 .header-spacer {
@@ -49,21 +55,24 @@ body {
 }
 
 .menu-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: white;
+  background: white;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
   padding: 0.5rem 0.75rem;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 0.5rem;
   font-size: 0.9rem;
-  transition: background 0.2s;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
 .menu-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--bg-color);
+  border-color: var(--text-muted);
 }
 
 .menu-icon {
@@ -297,19 +306,22 @@ body {
 }
 
 .auth-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: white;
+  background: white;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
   padding: 0.4rem 0.75rem;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 0.85rem;
-  transition: background 0.2s;
+  font-weight: 500;
+  transition: all 0.2s ease;
   white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
 .auth-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--bg-color);
+  border-color: var(--text-muted);
 }
 
 /* ABC loader action row */
@@ -707,18 +719,19 @@ body {
 .tune-card {
   background: white;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 1.25rem;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 
 .tune-card:hover {
-  border-color: var(--primary-light);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-color: var(--text-muted);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
   transform: translateY(-2px);
 }
 
@@ -748,68 +761,83 @@ body {
 }
 
 .player-header {
-  background: var(--primary-color);
-  color: white;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-color);
   padding: 0.75rem 1rem;
   display: flex;
   align-items: center;
   gap: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 50;
 }
 
 .player-header .back-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: white;
+  background: white;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
   padding: 0.5rem 1rem;
-  border-radius: 4px;
+  border-radius: 6px;
+  font-weight: 500;
   cursor: pointer;
   font-size: 0.9rem;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
 .player-header .back-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--bg-color);
+  border-color: var(--text-muted);
 }
 
 .player-header .tune-title {
   flex: 1;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
   text-align: center;
   margin: 0;
 }
 
 .player-header .settings-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: white;
+  background: white;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
   width: 36px;
   height: 36px;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 1.2rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
 .player-header .settings-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--bg-color);
+  border-color: var(--text-muted);
 }
 
 .player-header .about-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: white;
+  background: white;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
   padding: 0.5rem 1rem;
-  border-radius: 4px;
+  border-radius: 6px;
+  font-weight: 500;
   cursor: pointer;
   font-size: 0.9rem;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
 .player-header .about-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--bg-color);
+  border-color: var(--text-muted);
 }
 
 .player-main {
