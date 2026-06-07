@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from .auth import require_admin
 from .database import (
     UserRecord,
+    get_activity_logs,
     get_all_users,
     get_set_item_count,
     get_set_items,
@@ -50,6 +51,27 @@ async def change_user_role(user_id: int, body: RoleUpdate, _admin: UserRecord = 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return {"ok": True, "role": user.role}
+
+
+@admin_router.get("/logs")
+async def list_activity_logs(limit: int = 200, _admin: UserRecord = Depends(require_admin)):
+    """Return the most recent activity log entries (newest first)."""
+    if limit < 1 or limit > 1000:
+        raise HTTPException(status_code=400, detail="limit must be between 1 and 1000")
+    logs = get_activity_logs(limit=limit)
+    return [
+        {
+            "id": log.id,
+            "user_email": log.user_email,
+            "user_id": log.user_id,
+            "action": log.action,
+            "detail": log.detail,
+            "status": log.status,
+            "ip": log.ip,
+            "created_at": log.created_at.isoformat(),
+        }
+        for log in logs
+    ]
 
 
 @admin_router.get("/users/{user_id}/sets")

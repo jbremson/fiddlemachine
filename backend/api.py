@@ -11,7 +11,7 @@ from music21 import converter
 from pydantic import BaseModel
 
 from .abc_parser import parse_abc, get_section_beat_boundaries
-from .auth import require_admin, require_user
+from .auth import get_current_user, require_admin, require_user
 from .database import UserRecord
 from .tune import Tune
 from . import database as db
@@ -358,8 +358,11 @@ class FetchUrlRequest(BaseModel):
 
 
 @router.post("/tunes/fetch-url", response_model=Tune)
-async def fetch_tune_from_url(request: FetchUrlRequest, _admin: UserRecord = Depends(require_admin)):
-    """Fetch ABC content from a URL, save to database, and return parsed tune."""
+async def fetch_tune_from_url(request: FetchUrlRequest, _user: UserRecord | None = Depends(get_current_user)):
+    """Fetch ABC content from a URL, save to database, and return parsed tune.
+
+    Open to everyone — no login required.
+    """
     url = request.url.strip()
 
     # Validate URL

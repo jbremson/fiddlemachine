@@ -12,11 +12,17 @@ from starlette.middleware import Middleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 import os
 
+import logging
+
+from backend import database
+from backend.activity import log_request
 from backend.admin import admin_router
 from backend.api import router
 from backend.auth import auth_router
 from backend.sets import sets_router
 from backend.stats import stats_router
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 
 class ProxyHeadersMiddleware:
@@ -42,8 +48,17 @@ app = FastAPI(
 _is_https = bool(os.environ.get("OAUTH_REDIRECT_URI", "").startswith("https"))
 app.add_middleware(SessionMiddleware, secret_key=os.environ.get("JWT_SECRET", "dev-secret-change-me"), same_site="lax", https_only=_is_https)
 
+# Activity logging — records who (email or 'anon') is doing what
+app.middleware("http")(log_request)
+
 # Proxy headers middleware — added last so it's outermost, runs first
 app.add_middleware(ProxyHeadersMiddleware)
+
+
+@app.on_event("startup")
+async def _ensure_db():
+    """Make sure all tables (including activity_log) exist before serving."""
+    database.init_db()
 
 # Include API routes
 app.include_router(router)

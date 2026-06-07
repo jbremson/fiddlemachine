@@ -2501,6 +2501,43 @@ body {
   overflow-y: auto;
 }
 
+.admin-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border-color);
+  margin: 0.5rem 0 0.25rem;
+}
+
+.admin-tab {
+  padding: 0.4rem 0.9rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+}
+
+.admin-tab:hover {
+  color: var(--text-color);
+}
+
+.admin-tab.active {
+  color: var(--text-color);
+  font-weight: 600;
+  border-bottom-color: var(--text-color);
+}
+
+.admin-logs-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0.25rem 0;
+}
+
+.admin-logs-list .log-anon td {
+  color: var(--text-muted);
+}
+
 .admin-table {
   width: 100%;
   border-collapse: collapse;

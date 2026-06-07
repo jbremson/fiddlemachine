@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from .database import (
     UserRecord,
     delete_user_song,
+    insert_activity_log,
     get_user_by_google_id,
     get_user_song,
     get_user_songs,
@@ -60,6 +61,22 @@ def _create_jwt(google_id: str) -> str:
         "iat": datetime.now(timezone.utc),
     }
     return jwt.encode(payload, _get_jwt_secret(), algorithm=JWT_ALGORITHM)
+
+
+def _log_login(user: UserRecord, provider: str, request: Request) -> None:
+    """Record a successful login in the activity log."""
+    try:
+        ip = request.client.host if request.client else None
+        insert_activity_log(
+            user_email=user.email,
+            user_id=user.id,
+            action="login",
+            detail=provider,
+            status=200,
+            ip=ip,
+        )
+    except Exception:
+        logger.exception("Failed to log login event")
 
 
 def get_current_user(request: Request) -> UserRecord | None:
@@ -151,6 +168,7 @@ async def auth_callback(request: Request):
             picture_url=userinfo.get("picture"),
         )
 
+        _log_login(user, "google", request)
         jwt_token = _create_jwt(user.google_id)
         response = RedirectResponse(url="/")
         _is_https = bool(os.environ.get("OAUTH_REDIRECT_URI", "").startswith("https"))
@@ -221,7 +239,7 @@ async def email_send_code(body: EmailSendCode):
 
 
 @auth_router.post("/auth/email/verify")
-async def email_verify(body: EmailVerify):
+async def email_verify(body: EmailVerify, request: Request):
     email_auth_url = os.environ.get("EMAIL_AUTH_URL", "")
     access_key = os.environ.get("EMAIL_AUTH_ACCESS_KEY", "")
     if not email_auth_url or not access_key:
@@ -240,6 +258,7 @@ async def email_verify(body: EmailVerify):
 
     google_id = f"email:{body.email}"
     user = upsert_user(google_id=google_id, email=body.email, name=None, picture_url=None)
+    _log_login(user, "email", request)
     jwt_token = _create_jwt(google_id)
     _is_https = bool(os.environ.get("OAUTH_REDIRECT_URI", "").startswith("https"))
     response = JSONResponse(content={

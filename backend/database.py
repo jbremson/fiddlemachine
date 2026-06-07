@@ -59,6 +59,19 @@ class UserRecord:
 
 
 @dataclass
+class ActivityLogRecord:
+    """An activity log entry tracking who did what."""
+    id: int
+    user_email: str       # The acting user's email, or 'anon' if not logged in
+    user_id: int | None   # The acting user's id, or None if anonymous
+    action: str           # What happened, e.g. an HTTP method or 'login'
+    detail: str | None    # Extra context, e.g. the request path or auth provider
+    status: int | None    # HTTP status code, when applicable
+    ip: str | None        # Client IP address
+    created_at: datetime
+
+
+@dataclass
 class UserSongRecord:
     """A user's saved song record."""
     id: int
@@ -271,6 +284,23 @@ def init_db() -> None:
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_play_events_user_created
             ON play_events(user_id, created_at)
+        """)
+
+        # Activity log — records who is doing what (user email or 'anon')
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS activity_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_email TEXT NOT NULL DEFAULT 'anon',
+                user_id INTEGER,
+                action TEXT NOT NULL,
+                detail TEXT,
+                status INTEGER,
+                ip TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_activity_log_created ON activity_log(id DESC)
         """)
 
         conn.commit()
@@ -1177,6 +1207,48 @@ def get_user_play_history(user_id: int, limit: int = 50) -> list[dict]:
                 "duration_seconds": row['duration_seconds'],
                 "created_at": row['created_at'],
             }
+            for row in rows
+        ]
+
+
+def insert_activity_log(
+    user_email: str,
+    user_id: int | None,
+    action: str,
+    detail: str | None = None,
+    status: int | None = None,
+    ip: str | None = None,
+) -> None:
+    """Record an activity log entry."""
+    with get_connection() as conn:
+        conn.execute(
+            """INSERT INTO activity_log (user_email, user_id, action, detail, status, ip)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (user_email, user_id, action, detail, status, ip),
+        )
+        conn.commit()
+
+
+def get_activity_logs(limit: int = 200, offset: int = 0) -> list[ActivityLogRecord]:
+    """Get recent activity log entries, newest first."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT * FROM activity_log
+               ORDER BY id DESC
+               LIMIT ? OFFSET ?""",
+            (limit, offset),
+        ).fetchall()
+        return [
+            ActivityLogRecord(
+                id=row['id'],
+                user_email=row['user_email'],
+                user_id=row['user_id'],
+                action=row['action'],
+                detail=row['detail'],
+                status=row['status'],
+                ip=row['ip'],
+                created_at=datetime.fromisoformat(row['created_at']),
+            )
             for row in rows
         ]
 
