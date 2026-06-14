@@ -4,7 +4,6 @@ import { TransportControls } from './TransportControls';
 import { OctaveControl } from './OctaveControl';
 import { KeySelector } from './KeySelector';
 import { MetronomeSelector } from './MetronomeSelector';
-import { CountOffButton } from './CountOffButton';
 import { RepeatSelector } from './RepeatSelector';
 import { LoopButton } from './LoopButton';
 import { SettingsPanel } from './SettingsPanel';
@@ -369,26 +368,6 @@ export function PlayerView({
               </button>
             </div>
 
-            <CountOffButton
-              enabled={countOffEnabled}
-              onToggle={onCountOffToggle}
-            />
-
-            <MetronomeSelector
-              enabled={metronomeEnabled}
-              onToggle={onMetronomeToggle}
-            />
-
-            <RepeatSelector
-              repeatCount={repeatCount}
-              onRepeatCountChange={onRepeatCountChange}
-            />
-
-            <LoopButton
-              looping={loopForever}
-              onToggle={onLoopForeverChange}
-            />
-
             <button
               className={`speedup-btn ${speedUpEnabled ? 'active' : ''}`}
               onClick={() => {
@@ -404,6 +383,21 @@ export function PlayerView({
             >
               ⏩
             </button>
+
+            <LoopButton
+              looping={loopForever}
+              onToggle={onLoopForeverChange}
+            />
+
+            <RepeatSelector
+              repeatCount={repeatCount}
+              onRepeatCountChange={onRepeatCountChange}
+            />
+
+            <MetronomeSelector
+              enabled={metronomeEnabled}
+              onToggle={onMetronomeToggle}
+            />
 
             <button
               className="info-btn"
@@ -432,6 +426,8 @@ export function PlayerView({
               playbackEngine={playbackEngine}
               onPlaybackEngineChange={onPlaybackEngineChange}
               soundfontLoading={soundfontLoading}
+              countOffEnabled={countOffEnabled}
+              onCountOffToggle={onCountOffToggle}
               onClose={() => setShowSettings(false)}
             />
           )}

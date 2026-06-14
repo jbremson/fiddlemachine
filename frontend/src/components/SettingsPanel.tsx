@@ -1,4 +1,5 @@
 import { SynthType, getSynthTypes, PlaybackEngine } from '../audio/synth';
+import { CountOffButton } from './CountOffButton';
 
 interface SettingsPanelProps {
   synthType: SynthType;
@@ -6,10 +7,12 @@ interface SettingsPanelProps {
   playbackEngine: PlaybackEngine;
   onPlaybackEngineChange: (engine: PlaybackEngine) => void;
   soundfontLoading: boolean;
+  countOffEnabled: boolean;
+  onCountOffToggle: (enabled: boolean) => void;
   onClose: () => void;
 }
 
-export function SettingsPanel({ synthType, onSynthTypeChange, playbackEngine, onPlaybackEngineChange, soundfontLoading, onClose }: SettingsPanelProps) {
+export function SettingsPanel({ synthType, onSynthTypeChange, playbackEngine, onPlaybackEngineChange, soundfontLoading, countOffEnabled, onCountOffToggle, onClose }: SettingsPanelProps) {
   const synthTypes = getSynthTypes();
 
   return (
@@ -44,6 +47,13 @@ export function SettingsPanel({ synthType, onSynthTypeChange, playbackEngine, on
               </option>
             ))}
           </select>
+        </div>
+        <div className="settings-row">
+          <label>Count-off:</label>
+          <CountOffButton
+            enabled={countOffEnabled}
+            onToggle={onCountOffToggle}
+          />
         </div>
       </div>
     </div>
