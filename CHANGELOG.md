@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.2.0 — 2026-06-13
+
+- Allow anonymous ABC URL fetch (no login required)
+- Add activity logging with admin Activity Log tab and logs endpoint
+- Add SoundFont engine with MIDI-based playback
+- Use mp3 files with flat note names for SoundFont
+- Fix MIDI playback to use actual note bounds instead of custom section bounds
+- Add modern neutral aesthetic with Inter font and sticky headers
+
 ## v2.1.0 — 2026-04-12
 
 - Add practice stats with play tracking, summary, and history
