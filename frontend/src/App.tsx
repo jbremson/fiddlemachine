@@ -194,6 +194,20 @@ export function App() {
     setSpeedUpMaxBpm(config.maxBpm);
     setSpeedUpSteps(config.stepsPerIncrease);
     tunePlayer.configureSpeedUp(config);
+
+    if (config.enabled) {
+      // Take over the master tempo so the display matches the trainer
+      const start = Math.max(30, Math.min(200, config.startBpm));
+      setBpm(start);
+      tunePlayer.setBpm(start);
+      // Loop forever so the tempo can keep ramping; overrides the repeat count
+      setLoopForever(true);
+      tunePlayer.setLooping(true);
+    } else {
+      // Hand control back: stop looping when the trainer is switched off
+      setLoopForever(false);
+      tunePlayer.setLooping(false);
+    }
   }, []);
 
   const handleToneChange = useCallback((tone: SynthType) => {

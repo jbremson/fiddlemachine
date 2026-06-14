@@ -1,14 +1,16 @@
 interface LoopButtonProps {
   looping: boolean;
   onToggle: (looping: boolean) => void;
+  disabled?: boolean;
 }
 
-export function LoopButton({ looping, onToggle }: LoopButtonProps) {
+export function LoopButton({ looping, onToggle, disabled = false }: LoopButtonProps) {
   return (
     <button
       className={`loop-button ${looping ? 'active' : ''}`}
       onClick={() => onToggle(!looping)}
-      title={looping ? 'Turn off loop' : 'Loop forever'}
+      disabled={disabled}
+      title={disabled ? 'Controlled by the tempo trainer' : (looping ? 'Turn off loop' : 'Loop forever')}
       aria-label={looping ? 'Turn off loop' : 'Loop forever'}
       aria-pressed={looping}
     >

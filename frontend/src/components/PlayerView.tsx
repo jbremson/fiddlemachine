@@ -350,10 +350,16 @@ export function PlayerView({
               disabled={false}
             />
 
-            <div className="tempo-control" role="group" aria-label="Tempo control">
+            <div
+              className={`tempo-control ${speedUpEnabled ? 'disabled' : ''}`}
+              role="group"
+              aria-label="Tempo control"
+              title={speedUpEnabled ? 'Controlled by the tempo trainer' : undefined}
+            >
               <button
                 className="tempo-btn"
                 onClick={() => onBpmChange(bpm - 5)}
+                disabled={speedUpEnabled}
                 aria-label="Decrease tempo"
               >
                 −
@@ -362,6 +368,7 @@ export function PlayerView({
               <button
                 className="tempo-btn"
                 onClick={() => onBpmChange(bpm + 5)}
+                disabled={speedUpEnabled}
                 aria-label="Increase tempo"
               >
                 +
@@ -387,11 +394,13 @@ export function PlayerView({
             <LoopButton
               looping={loopForever}
               onToggle={onLoopForeverChange}
+              disabled={speedUpEnabled}
             />
 
             <RepeatSelector
               repeatCount={repeatCount}
               onRepeatCountChange={onRepeatCountChange}
+              disabled={speedUpEnabled}
             />
 
             <MetronomeSelector

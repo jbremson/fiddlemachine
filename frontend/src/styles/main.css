@@ -1105,6 +1105,12 @@ body {
   gap: 0.5rem;
 }
 
+/* Controls taken over by the tempo trainer */
+.tempo-control.disabled,
+.repeat-control.disabled {
+  opacity: 0.5;
+}
+
 .tempo-btn {
   width: 32px;
   height: 32px;
