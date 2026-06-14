@@ -31,6 +31,12 @@ class TunePlayer {
   private soundfontLoading: boolean = false;
   private midiData: MidiData | null = null;
   private useMidi: boolean = false;
+  private speedUpEnabled: boolean = false;
+  private speedUpStartBpm: number = 72;
+  private speedUpIncrement: number = 5;
+  private speedUpMaxBpm: number = 120;
+  private speedUpStepsPerIncrease: number = 1;
+  private onBpmChange: ((bpm: number) => void) | null = null;
 
   async initialize(): Promise<void> {
     await Tone.start();
@@ -168,6 +174,24 @@ class TunePlayer {
 
   setOnStateChange(callback: PlaybackCallback): void {
     this.onStateChange = callback;
+  }
+
+  setOnBpmChange(callback: (bpm: number) => void): void {
+    this.onBpmChange = callback;
+  }
+
+  configureSpeedUp(config: {
+    enabled: boolean;
+    startBpm: number;
+    increment: number;
+    maxBpm: number;
+    stepsPerIncrease: number;
+  }): void {
+    this.speedUpEnabled = config.enabled;
+    this.speedUpStartBpm = Math.max(30, Math.min(200, config.startBpm));
+    this.speedUpIncrement = Math.max(1, config.increment);
+    this.speedUpMaxBpm = Math.max(30, Math.min(200, config.maxBpm));
+    this.speedUpStepsPerIncrease = Math.max(1, config.stepsPerIncrease);
   }
 
   private getSectionsToPlay(): Section[] {
@@ -310,6 +334,14 @@ class TunePlayer {
         // Reset and continue (no count-off on loops/repeats)
         transport.stop();
         transport.position = 0;
+        // Incremental speed-up: step the tempo up at each level boundary
+        if (this.speedUpEnabled && this.currentRepeat % this.speedUpStepsPerIncrease === 0) {
+          const next = Math.min(this.speedUpMaxBpm, this.bpm + this.speedUpIncrement);
+          if (next !== this.bpm) {
+            this.setBpm(next);
+            this.onBpmChange?.(this.bpm);
+          }
+        }
         this.scheduleNotes(false);
         transport.start();
       } else {
@@ -479,6 +511,11 @@ class TunePlayer {
       Tone.getTransport().start();
     } else {
       this.currentRepeat = 0;
+      // Incremental speed-up: begin each run at the configured start tempo
+      if (this.speedUpEnabled && this.bpm !== this.speedUpStartBpm) {
+        this.setBpm(this.speedUpStartBpm);
+        this.onBpmChange?.(this.bpm);
+      }
       Tone.getTransport().stop();
       Tone.getTransport().position = 0;
       this.scheduleNotes();

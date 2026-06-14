@@ -18,6 +18,11 @@ interface PlayerViewProps {
   bpm: number;
   repeatCount: number;
   loopForever: boolean;
+  speedUpEnabled: boolean;
+  speedUpStartBpm: number;
+  speedUpIncrement: number;
+  speedUpMaxBpm: number;
+  speedUpSteps: number;
   synthType: SynthType;
   transpose: number;
   octaveShift: number;
@@ -34,6 +39,13 @@ interface PlayerViewProps {
   onBpmChange: (bpm: number) => void;
   onRepeatCountChange: (count: number) => void;
   onLoopForeverChange: (loop: boolean) => void;
+  onSpeedUpChange: (config: {
+    enabled: boolean;
+    startBpm: number;
+    increment: number;
+    maxBpm: number;
+    stepsPerIncrease: number;
+  }) => void;
   onToneChange: (tone: SynthType) => void;
   onOctaveChange: (shift: number) => void;
   onTransposeChange: (semitones: number) => void;
@@ -53,6 +65,11 @@ export function PlayerView({
   bpm,
   repeatCount,
   loopForever,
+  speedUpEnabled,
+  speedUpStartBpm,
+  speedUpIncrement,
+  speedUpMaxBpm,
+  speedUpSteps,
   synthType,
   transpose,
   octaveShift,
@@ -69,6 +86,7 @@ export function PlayerView({
   onBpmChange,
   onRepeatCountChange,
   onLoopForeverChange,
+  onSpeedUpChange,
   onToneChange,
   onOctaveChange,
   onTransposeChange,
@@ -116,6 +134,13 @@ export function PlayerView({
   const [addToSetMetronome, setAddToSetMetronome] = useState(metronomeEnabled);
   const [addToSetCountOff, setAddToSetCountOff] = useState(countOffEnabled);
   const [addToSetSubmitting, setAddToSetSubmitting] = useState(false);
+
+  // Speed-up trainer dialog state
+  const [showSpeedUp, setShowSpeedUp] = useState(false);
+  const [speedUpFormStart, setSpeedUpFormStart] = useState(speedUpStartBpm);
+  const [speedUpFormIncrement, setSpeedUpFormIncrement] = useState(speedUpIncrement);
+  const [speedUpFormMax, setSpeedUpFormMax] = useState(speedUpMaxBpm);
+  const [speedUpFormSteps, setSpeedUpFormSteps] = useState(speedUpSteps);
 
   // Track play events for stats
   useEffect(() => {
@@ -363,6 +388,22 @@ export function PlayerView({
               looping={loopForever}
               onToggle={onLoopForeverChange}
             />
+
+            <button
+              className={`speedup-btn ${speedUpEnabled ? 'active' : ''}`}
+              onClick={() => {
+                setSpeedUpFormStart(speedUpStartBpm);
+                setSpeedUpFormIncrement(speedUpIncrement);
+                setSpeedUpFormMax(speedUpMaxBpm);
+                setSpeedUpFormSteps(speedUpSteps);
+                setShowSpeedUp(true);
+              }}
+              title="Incremental speed-up trainer"
+              aria-label="Incremental speed-up trainer"
+              aria-pressed={speedUpEnabled}
+            >
+              ⏩
+            </button>
 
             <button
               className="info-btn"
@@ -819,6 +860,84 @@ export function PlayerView({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {showSpeedUp && (
+        <div className="about-overlay" onClick={() => setShowSpeedUp(false)}>
+          <div className="about-popup" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="about-close"
+              onClick={() => setShowSpeedUp(false)}
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <h2>Speed-Up Trainer</h2>
+            <div className="add-to-set-form">
+              <div className="add-to-set-field">
+                <label>Start BPM</label>
+                <input
+                  type="number"
+                  value={speedUpFormStart}
+                  onChange={(e) => setSpeedUpFormStart(Number(e.target.value))}
+                  min={30}
+                  max={200}
+                />
+              </div>
+              <div className="add-to-set-field">
+                <label>Increment</label>
+                <input
+                  type="number"
+                  value={speedUpFormIncrement}
+                  onChange={(e) => setSpeedUpFormIncrement(Number(e.target.value))}
+                  min={1}
+                  max={50}
+                />
+              </div>
+              <div className="add-to-set-field">
+                <label>Max BPM</label>
+                <input
+                  type="number"
+                  value={speedUpFormMax}
+                  onChange={(e) => setSpeedUpFormMax(Number(e.target.value))}
+                  min={30}
+                  max={200}
+                />
+              </div>
+              <div className="add-to-set-field">
+                <label>Repeats / step</label>
+                <input
+                  type="number"
+                  value={speedUpFormSteps}
+                  onChange={(e) => setSpeedUpFormSteps(Number(e.target.value))}
+                  min={1}
+                  max={8}
+                />
+              </div>
+              <p className="speedup-hint">
+                Tempo rises each time the tune repeats. Turn on Loop for a continuous ramp.
+              </p>
+              <div className="add-to-set-actions">
+                <button className="cancel-btn" onClick={() => setShowSpeedUp(false)}>Cancel</button>
+                <button
+                  className="add-btn"
+                  onClick={() => {
+                    onSpeedUpChange({
+                      enabled: !speedUpEnabled,
+                      startBpm: speedUpFormStart,
+                      increment: speedUpFormIncrement,
+                      maxBpm: speedUpFormMax,
+                      stepsPerIncrease: speedUpFormSteps,
+                    });
+                    setShowSpeedUp(false);
+                  }}
+                >
+                  {speedUpEnabled ? 'Turn Off' : 'Turn On'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
