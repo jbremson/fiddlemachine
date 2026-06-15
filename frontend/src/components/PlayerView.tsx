@@ -256,17 +256,18 @@ export function PlayerView({
           className="back-btn"
           onClick={onBack}
           aria-label="Back to tune list"
+          title="Back to tune list"
         >
           ← Back
         </button>
         <div className="tune-title-area">
           <div className="tune-title-row">
             {activeSet && activeSetIndex > 0 && (
-              <button className="set-nav-btn" onClick={onPrevTune} aria-label="Previous tune">←</button>
+              <button className="set-nav-btn" onClick={onPrevTune} aria-label="Previous tune" title="Previous tune">←</button>
             )}
             <h1 className="tune-title">{tune.title}</h1>
             {activeSet && activeSetIndex < activeSet.items.length - 1 && (
-              <button className="set-nav-btn" onClick={onNextTune} aria-label="Next tune">→</button>
+              <button className="set-nav-btn" onClick={onNextTune} aria-label="Next tune" title="Next tune">→</button>
             )}
           </div>
           {activeSet && (
@@ -279,6 +280,7 @@ export function PlayerView({
             onClick={() => setMenuOpen(!menuOpen)}
             aria-label="Menu"
             aria-expanded={menuOpen}
+            title="Open menu"
           >
             <span className="menu-icon">☰</span>
             <span className="menu-label">Menu</span>
@@ -291,6 +293,7 @@ export function PlayerView({
                   setShowChangelog(true);
                   setMenuOpen(false);
                 }}
+                title="View changelog"
               >
                 Changelog
               </button>
@@ -300,6 +303,7 @@ export function PlayerView({
                   setShowAbout(true);
                   setMenuOpen(false);
                 }}
+                title="About FiddleMachine"
               >
                 About
               </button>
@@ -310,6 +314,7 @@ export function PlayerView({
                     logout();
                     setMenuOpen(false);
                   }}
+                  title="Sign out"
                 >
                   Sign out
                 </button>
@@ -322,7 +327,7 @@ export function PlayerView({
       {error && (
         <div className="error-banner" role="alert">
           {error}
-          <button onClick={onDismissError} aria-label="Dismiss error">×</button>
+          <button onClick={onDismissError} aria-label="Dismiss error" title="Dismiss error">×</button>
         </div>
       )}
 
@@ -361,6 +366,7 @@ export function PlayerView({
                 onClick={() => onBpmChange(bpm - 5)}
                 disabled={speedUpEnabled}
                 aria-label="Decrease tempo"
+                title="Decrease tempo by 5 BPM"
               >
                 −
               </button>
@@ -370,6 +376,7 @@ export function PlayerView({
                 onClick={() => onBpmChange(bpm + 5)}
                 disabled={speedUpEnabled}
                 aria-label="Increase tempo"
+                title="Increase tempo by 5 BPM"
               >
                 +
               </button>
@@ -482,6 +489,7 @@ export function PlayerView({
               setAbcText(tune.abc);
               setShowAbcEditor(!showAbcEditor);
             }}
+            title={showAbcEditor ? 'Hide ABC editor' : 'Edit ABC notation'}
           >
             {showAbcEditor ? 'Hide ABC' : 'Edit ABC'}
           </button>
@@ -520,10 +528,10 @@ export function PlayerView({
             />
             {saveError && <div className="save-error">{saveError}</div>}
             <div className="save-form-actions">
-              <button onClick={handleSaveSong} disabled={!saveName.trim() || !saveTag.trim() || isSaving}>
+              <button onClick={handleSaveSong} disabled={!saveName.trim() || !saveTag.trim() || isSaving} title="Save song">
                 {isSaving ? 'Saving...' : 'Save Song'}
               </button>
-              <button className="cancel-btn" onClick={() => setShowSaveForm(false)}>Cancel</button>
+              <button className="cancel-btn" onClick={() => setShowSaveForm(false)} title="Cancel">Cancel</button>
             </div>
           </div>
         )}
@@ -539,6 +547,7 @@ export function PlayerView({
             <button
               className="reload-abc-btn"
               onClick={() => onReloadAbc(abcText)}
+              title="Reload ABC notation"
             >
               Reload
             </button>
@@ -549,6 +558,7 @@ export function PlayerView({
           <button
             className="debug-link"
             onClick={() => setShowDebug(!showDebug)}
+            title={showDebug ? 'Hide debug info' : 'Show debug info'}
           >
             {showDebug ? 'Hide Debug' : 'Debug'}
           </button>
@@ -562,6 +572,7 @@ export function PlayerView({
               className="about-close"
               onClick={() => setShowAbout(false)}
               aria-label="Close"
+              title="Close"
             >
               ×
             </button>
@@ -592,6 +603,7 @@ export function PlayerView({
               className="about-close"
               onClick={() => setShowChangelog(false)}
               aria-label="Close"
+              title="Close"
             >
               ×
             </button>
@@ -639,6 +651,7 @@ export function PlayerView({
               className="about-close"
               onClick={() => setShowTuneInfo(false)}
               aria-label="Close"
+              title="Close"
             >
               ×
             </button>
@@ -704,6 +717,7 @@ export function PlayerView({
               className="about-close"
               onClick={() => setShowDebug(false)}
               aria-label="Close"
+              title="Close"
             >
               ×
             </button>
@@ -743,6 +757,7 @@ export function PlayerView({
               className="about-close"
               onClick={() => setShowAddToSet(false)}
               aria-label="Close"
+              title="Close"
             >
               ×
             </button>
@@ -827,9 +842,10 @@ export function PlayerView({
                   </label>
                 </div>
                 <div className="add-to-set-actions">
-                  <button className="cancel-btn" onClick={() => setShowAddToSet(false)}>Cancel</button>
+                  <button className="cancel-btn" onClick={() => setShowAddToSet(false)} title="Cancel">Cancel</button>
                   <button
                     className="add-btn"
+                    title="Add to set"
                     disabled={!addToSetSelectedId || addToSetSubmitting}
                     onClick={async () => {
                       if (!addToSetSelectedId) return;
@@ -876,6 +892,7 @@ export function PlayerView({
               className="about-close"
               onClick={() => setShowSpeedUp(false)}
               aria-label="Close"
+              title="Close"
             >
               ×
             </button>
@@ -925,9 +942,10 @@ export function PlayerView({
                 Tempo rises each time the tune repeats. Turn on Loop for a continuous ramp.
               </p>
               <div className="add-to-set-actions">
-                <button className="cancel-btn" onClick={() => setShowSpeedUp(false)}>Cancel</button>
+                <button className="cancel-btn" onClick={() => setShowSpeedUp(false)} title="Cancel">Cancel</button>
                 <button
                   className="add-btn"
+                  title={speedUpEnabled ? 'Turn off trainer' : 'Turn on trainer'}
                   onClick={() => {
                     onSpeedUpChange({
                       enabled: !speedUpEnabled,

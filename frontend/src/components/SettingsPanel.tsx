@@ -19,7 +19,7 @@ export function SettingsPanel({ synthType, onSynthTypeChange, playbackEngine, on
     <div className="settings-panel" role="dialog" aria-label="Settings">
       <div className="settings-header">
         <span>Settings</span>
-        <button className="settings-close" onClick={onClose} aria-label="Close settings">×</button>
+        <button className="settings-close" onClick={onClose} aria-label="Close settings" title="Close settings">×</button>
       </div>
       <div className="settings-content">
         <div className="settings-row">

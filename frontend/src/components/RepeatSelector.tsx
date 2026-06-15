@@ -22,6 +22,7 @@ export function RepeatSelector({
         onClick={() => onRepeatCountChange(Math.max(1, repeatCount - 1))}
         disabled={disabled || repeatCount <= 1}
         aria-label="Decrease repeat count"
+        title="Fewer repeats"
       >
         −
       </button>
@@ -31,6 +32,7 @@ export function RepeatSelector({
         onClick={() => onRepeatCountChange(Math.min(10, repeatCount + 1))}
         disabled={disabled || repeatCount >= 10}
         aria-label="Increase repeat count"
+        title="More repeats"
       >
         +
       </button>

@@ -63,19 +63,21 @@ export function StatsPanel({ onClose }: StatsPanelProps) {
   return (
     <div className="about-overlay" onClick={onClose}>
       <div className="about-popup stats-popup" onClick={e => e.stopPropagation()}>
-        <button className="about-close" onClick={onClose} aria-label="Close">×</button>
+        <button className="about-close" onClick={onClose} aria-label="Close" title="Close stats">×</button>
         <h2>My Stats</h2>
 
         <div className="stats-tabs">
           <button
             className={`stats-tab ${tab === 'summary' ? 'active' : ''}`}
             onClick={() => setTab('summary')}
+            title="Show summary"
           >
             Summary
           </button>
           <button
             className={`stats-tab ${tab === 'history' ? 'active' : ''}`}
             onClick={() => setTab('history')}
+            title="Show history"
           >
             History
           </button>
