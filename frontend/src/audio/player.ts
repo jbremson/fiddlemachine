@@ -226,12 +226,13 @@ class TunePlayer {
     const transport = Tone.getTransport();
 
     // Calculate lead-in beats (only on first play, not loops)
-    // Formula: beatsPerBar + (beatsPerBar - pickupBeats)
-    // This gives 2 full bars when there's a pickup, or just 1 bar when first bar is full
-    // If pickupBeats equals beatsPerBar, there's no pickup and lead-in = beatsPerBar (1 bar)
-    // If pickupBeats < beatsPerBar, lead-in extends to give the player time before the pickup
+    // Formula: beatsPerBar + (beatsPerBar - effectivePickup)
+    // When there's no pickup, treat the pickup as a full measure so the lead-in
+    // is exactly one bar (otherwise pickupBeats of 0 would double the count-off).
+    // With a partial pickup, the lead-in extends to give time before the pickup.
     const beatsPerBar = this.countOffBeats;
-    const leadInBeats = beatsPerBar + (beatsPerBar - this.pickupBeats);
+    const effectivePickup = this.pickupBeats > 0 ? this.pickupBeats : beatsPerBar;
+    const leadInBeats = beatsPerBar + (beatsPerBar - effectivePickup);
     const leadInOffset = (this.countOffEnabled && isFirstPlay) ? leadInBeats : 0;
     let sectionOffsetBeats = leadInOffset;
 
