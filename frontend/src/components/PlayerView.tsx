@@ -333,6 +333,8 @@ export function PlayerView({
 
       <main className="player-main">
         <div className="controls-bar">
+          <img className="fiddle-fox" src="/fiddle_fox.png" alt="Fiddle Fox" />
+          <div className="controls-stack">
           <div className="controls-row">
             <KeySelector
               currentKey={tune.key}
@@ -447,6 +449,7 @@ export function PlayerView({
               onClose={() => setShowSettings(false)}
             />
           )}
+          </div>
         </div>
 
         <div className="tune-actions-bar">

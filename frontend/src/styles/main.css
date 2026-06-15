@@ -1039,9 +1039,24 @@ body {
   padding: 1rem 1.5rem;
   border: 1px solid var(--border-color);
   display: flex;
+  flex-direction: row;
+  gap: 1.5rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.controls-stack {
+  display: flex;
   flex-direction: column;
   gap: 1rem;
   align-items: center;
+}
+
+.fiddle-fox {
+  width: 110px;
+  height: auto;
+  flex-shrink: 0;
+  align-self: center;
 }
 
 .controls-row {
@@ -1719,6 +1734,10 @@ body {
 
   .controls-bar {
     padding: 0.75rem;
+  }
+
+  .fiddle-fox {
+    width: 64px;
   }
 
   .controls-row {
