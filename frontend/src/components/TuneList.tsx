@@ -376,7 +376,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
           )}
         </div>
         <div className="header-title">
-          <img className="header-fox" src="/fiddle_fox.png" alt="Fiddle Fox" />
+          <img className="header-fox" src="/fiddle_fox_transparent.png" alt="Fiddle Fox" />
           <h1>Fiddle Machine</h1>
         </div>
         <div className="header-auth">
