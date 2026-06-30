@@ -3,7 +3,7 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
@@ -18,7 +18,7 @@ from backend import database
 from backend.activity import log_request
 from backend.admin import admin_router
 from backend.api import router
-from backend.auth import auth_router
+from backend.auth import auth_router, auth_callback
 from backend.sets import sets_router
 from backend.stats import stats_router
 
@@ -66,6 +66,15 @@ app.include_router(auth_router)
 app.include_router(sets_router)
 app.include_router(admin_router)
 app.include_router(stats_router)
+
+
+# Google OAuth is configured to redirect to /auth/callback (no /api prefix),
+# but the handler lives under the /api router. Alias it here, before the SPA
+# catch-all, so the callback runs instead of serving index.html.
+@app.get("/auth/callback")
+async def auth_callback_alias(request: Request):
+    return await auth_callback(request)
+
 
 # Serve static frontend files in production
 frontend_dist = Path(__file__).parent / "frontend" / "dist"
