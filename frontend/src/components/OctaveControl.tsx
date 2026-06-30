@@ -12,6 +12,7 @@ export function OctaveControl({ octaveShift, onOctaveChange }: OctaveControlProp
         onClick={() => onOctaveChange(octaveShift - 1)}
         disabled={octaveShift <= -2}
         aria-label="Decrease octave"
+        title="Octave down"
       >
         −
       </button>
@@ -23,6 +24,7 @@ export function OctaveControl({ octaveShift, onOctaveChange }: OctaveControlProp
         onClick={() => onOctaveChange(octaveShift + 1)}
         disabled={octaveShift >= 2}
         aria-label="Increase octave"
+        title="Octave up"
       >
         +
       </button>

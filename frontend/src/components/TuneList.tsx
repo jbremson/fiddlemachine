@@ -321,6 +321,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
             onClick={() => setMenuOpen(!menuOpen)}
             aria-label="Menu"
             aria-expanded={menuOpen}
+            title="Open menu"
           >
             <span className="menu-icon">☰</span>
             <span className="menu-label">Menu</span>
@@ -334,6 +335,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
                     setShowAdmin(true);
                     setMenuOpen(false);
                   }}
+                  title="Open admin panel"
                 >
                   Admin
                 </button>
@@ -345,6 +347,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
                     setShowStats(true);
                     setMenuOpen(false);
                   }}
+                  title="View my stats"
                 >
                   My Stats
                 </button>
@@ -355,6 +358,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
                   setShowChangelog(true);
                   setMenuOpen(false);
                 }}
+                title="View changelog"
               >
                 Changelog
               </button>
@@ -364,13 +368,17 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
                   setShowAbout(true);
                   setMenuOpen(false);
                 }}
+                title="About FiddleMachine"
               >
                 About
               </button>
             </div>
           )}
         </div>
-        <h1>Fiddle Machine</h1>
+        <div className="header-title">
+          <img className="header-fox" src="/fiddle_fox_transparent.png" alt="Fiddle Fox" />
+          <h1>Fiddle Machine</h1>
+        </div>
         <div className="header-auth">
           {isLoggedIn ? (
             <button className="auth-btn" onClick={logout} title={user?.email || ''}>
@@ -378,7 +386,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
               <span className="auth-btn-label"> - Sign out</span>
             </button>
           ) : (
-            <button className="auth-btn" onClick={() => setShowEmailLogin(true)}>
+            <button className="auth-btn" onClick={() => setShowEmailLogin(true)} title="Sign in">
               Sign in
             </button>
           )}
@@ -388,7 +396,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
       {error && (
         <div className="error-banner" role="alert">
           {error}
-          <button onClick={onDismissError} aria-label="Dismiss error">×</button>
+          <button onClick={onDismissError} aria-label="Dismiss error" title="Dismiss error">×</button>
         </div>
       )}
 
@@ -410,6 +418,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
                 onClick={handleUrlSubmit}
                 disabled={!urlInput.trim() || isLoadingUrl}
                 aria-label="Load tune from URL"
+                title="Load tune from URL"
               >
                 {isLoadingUrl ? 'Loading...' : 'Load'}
               </button>
@@ -431,6 +440,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
                 onClick={handleAbcSubmit}
                 disabled={!abcInput.trim() || isLoadingAbc}
                 aria-label="Load pasted ABC"
+                title="Load pasted ABC"
               >
                 {isLoadingAbc ? 'Loading...' : 'Load ABC'}
               </button>
@@ -444,6 +454,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
               className="library-header"
               onClick={() => setMySetsExpanded(!mySetsExpanded)}
               aria-expanded={mySetsExpanded}
+              title="Toggle my sets"
             >
               <span className="library-title">My Sets</span>
               {mySets.length > 0 && <span className="library-count">{mySets.length} sets</span>}
@@ -463,7 +474,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
                       onChange={(e) => setNewSetName(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') handleCreateSet(); }}
                     />
-                    <button onClick={handleCreateSet} disabled={!newSetName.trim()}>Create</button>
+                    <button onClick={handleCreateSet} disabled={!newSetName.trim()} title="Create set">Create</button>
                   </div>
                   {mySets.length > 3 && (
                     <div className="library-search" style={{ padding: '0.5rem 0' }}>
@@ -523,6 +534,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
             className="library-header"
             onClick={() => setLibraryExpanded(!libraryExpanded)}
             aria-expanded={libraryExpanded}
+            title="Toggle library"
           >
             <span className="library-title">Library</span>
             {totalCount > 0 && <span className="library-count">{totalCount} tunes</span>}
@@ -599,6 +611,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
               className="about-close"
               onClick={() => setShowAbout(false)}
               aria-label="Close"
+              title="Close"
             >
               ×
             </button>
@@ -629,6 +642,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
               className="about-close"
               onClick={() => setShowChangelog(false)}
               aria-label="Close"
+              title="Close"
             >
               ×
             </button>
@@ -675,11 +689,12 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
               className="about-close"
               onClick={() => { setShowEmailLogin(false); setEmailSent(false); setEmailError(''); setEmailInput(''); setCodeInput(''); }}
               aria-label="Close"
+              title="Close"
             >
               ×
             </button>
             <h2>Sign In</h2>
-            <button className="google-login-btn" onClick={() => { setShowEmailLogin(false); login(); }}>
+            <button className="google-login-btn" onClick={() => { setShowEmailLogin(false); login(); }} title="Sign in with Google">
               Sign in with Google
             </button>
             <div className="login-divider"><span>or</span></div>
@@ -712,6 +727,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
                       }).catch(() => setEmailError('Failed to send code. Try again.')).finally(() => setEmailLoading(false));
                     }}
                     disabled={!emailInput.trim() || emailLoading}
+                    title="Send login code"
                   >
                     {emailLoading ? 'Sending...' : 'Send Code'}
                   </button>
@@ -747,12 +763,14 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
                       }).catch(() => setEmailError('Verification failed. Try again.')).finally(() => setEmailLoading(false));
                     }}
                     disabled={!codeInput.trim() || emailLoading}
+                    title="Verify code"
                   >
                     {emailLoading ? 'Verifying...' : 'Verify'}
                   </button>
                   <button
                     className="email-back-btn"
                     onClick={() => { setEmailSent(false); setCodeInput(''); setEmailError(''); }}
+                    title="Go back"
                   >
                     Back
                   </button>
@@ -779,6 +797,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
               className="about-close"
               onClick={() => setShowSetEditor(false)}
               aria-label="Close"
+              title="Close"
             >
               ×
             </button>
@@ -848,6 +867,7 @@ export function TuneList({ tunes, loading, error, onSelectTune, onLoadFromUrl, o
               className="play-set-btn"
               onClick={() => { onPlaySet(editingSet); setShowSetEditor(false); }}
               disabled={editingSet.items.length === 0}
+              title="Play set"
             >
               Play Set
             </button>

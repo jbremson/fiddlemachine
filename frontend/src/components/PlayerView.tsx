@@ -4,7 +4,6 @@ import { TransportControls } from './TransportControls';
 import { OctaveControl } from './OctaveControl';
 import { KeySelector } from './KeySelector';
 import { MetronomeSelector } from './MetronomeSelector';
-import { CountOffButton } from './CountOffButton';
 import { RepeatSelector } from './RepeatSelector';
 import { LoopButton } from './LoopButton';
 import { SettingsPanel } from './SettingsPanel';
@@ -18,6 +17,11 @@ interface PlayerViewProps {
   bpm: number;
   repeatCount: number;
   loopForever: boolean;
+  speedUpEnabled: boolean;
+  speedUpStartBpm: number;
+  speedUpIncrement: number;
+  speedUpMaxBpm: number;
+  speedUpSteps: number;
   synthType: SynthType;
   transpose: number;
   octaveShift: number;
@@ -34,6 +38,13 @@ interface PlayerViewProps {
   onBpmChange: (bpm: number) => void;
   onRepeatCountChange: (count: number) => void;
   onLoopForeverChange: (loop: boolean) => void;
+  onSpeedUpChange: (config: {
+    enabled: boolean;
+    startBpm: number;
+    increment: number;
+    maxBpm: number;
+    stepsPerIncrease: number;
+  }) => void;
   onToneChange: (tone: SynthType) => void;
   onOctaveChange: (shift: number) => void;
   onTransposeChange: (semitones: number) => void;
@@ -53,6 +64,11 @@ export function PlayerView({
   bpm,
   repeatCount,
   loopForever,
+  speedUpEnabled,
+  speedUpStartBpm,
+  speedUpIncrement,
+  speedUpMaxBpm,
+  speedUpSteps,
   synthType,
   transpose,
   octaveShift,
@@ -69,6 +85,7 @@ export function PlayerView({
   onBpmChange,
   onRepeatCountChange,
   onLoopForeverChange,
+  onSpeedUpChange,
   onToneChange,
   onOctaveChange,
   onTransposeChange,
@@ -116,6 +133,13 @@ export function PlayerView({
   const [addToSetMetronome, setAddToSetMetronome] = useState(metronomeEnabled);
   const [addToSetCountOff, setAddToSetCountOff] = useState(countOffEnabled);
   const [addToSetSubmitting, setAddToSetSubmitting] = useState(false);
+
+  // Speed-up trainer dialog state
+  const [showSpeedUp, setShowSpeedUp] = useState(false);
+  const [speedUpFormStart, setSpeedUpFormStart] = useState(speedUpStartBpm);
+  const [speedUpFormIncrement, setSpeedUpFormIncrement] = useState(speedUpIncrement);
+  const [speedUpFormMax, setSpeedUpFormMax] = useState(speedUpMaxBpm);
+  const [speedUpFormSteps, setSpeedUpFormSteps] = useState(speedUpSteps);
 
   // Track play events for stats
   useEffect(() => {
@@ -232,17 +256,18 @@ export function PlayerView({
           className="back-btn"
           onClick={onBack}
           aria-label="Back to tune list"
+          title="Back to tune list"
         >
           ← Back
         </button>
         <div className="tune-title-area">
           <div className="tune-title-row">
             {activeSet && activeSetIndex > 0 && (
-              <button className="set-nav-btn" onClick={onPrevTune} aria-label="Previous tune">←</button>
+              <button className="set-nav-btn" onClick={onPrevTune} aria-label="Previous tune" title="Previous tune">←</button>
             )}
             <h1 className="tune-title">{tune.title}</h1>
             {activeSet && activeSetIndex < activeSet.items.length - 1 && (
-              <button className="set-nav-btn" onClick={onNextTune} aria-label="Next tune">→</button>
+              <button className="set-nav-btn" onClick={onNextTune} aria-label="Next tune" title="Next tune">→</button>
             )}
           </div>
           {activeSet && (
@@ -255,6 +280,7 @@ export function PlayerView({
             onClick={() => setMenuOpen(!menuOpen)}
             aria-label="Menu"
             aria-expanded={menuOpen}
+            title="Open menu"
           >
             <span className="menu-icon">☰</span>
             <span className="menu-label">Menu</span>
@@ -267,6 +293,7 @@ export function PlayerView({
                   setShowChangelog(true);
                   setMenuOpen(false);
                 }}
+                title="View changelog"
               >
                 Changelog
               </button>
@@ -276,6 +303,7 @@ export function PlayerView({
                   setShowAbout(true);
                   setMenuOpen(false);
                 }}
+                title="About FiddleMachine"
               >
                 About
               </button>
@@ -286,6 +314,7 @@ export function PlayerView({
                     logout();
                     setMenuOpen(false);
                   }}
+                  title="Sign out"
                 >
                   Sign out
                 </button>
@@ -298,12 +327,14 @@ export function PlayerView({
       {error && (
         <div className="error-banner" role="alert">
           {error}
-          <button onClick={onDismissError} aria-label="Dismiss error">×</button>
+          <button onClick={onDismissError} aria-label="Dismiss error" title="Dismiss error">×</button>
         </div>
       )}
 
       <main className="player-main">
         <div className="controls-bar">
+          <img className="fiddle-fox" src="/fiddle_fox_transparent.png" alt="Fiddle Fox" />
+          <div className="controls-stack">
           <div className="controls-row">
             <KeySelector
               currentKey={tune.key}
@@ -326,11 +357,18 @@ export function PlayerView({
               disabled={false}
             />
 
-            <div className="tempo-control" role="group" aria-label="Tempo control">
+            <div
+              className={`tempo-control ${speedUpEnabled ? 'disabled' : ''}`}
+              role="group"
+              aria-label="Tempo control"
+              title={speedUpEnabled ? 'Controlled by the tempo trainer' : undefined}
+            >
               <button
                 className="tempo-btn"
                 onClick={() => onBpmChange(bpm - 5)}
+                disabled={speedUpEnabled}
                 aria-label="Decrease tempo"
+                title="Decrease tempo by 5 BPM"
               >
                 −
               </button>
@@ -338,30 +376,45 @@ export function PlayerView({
               <button
                 className="tempo-btn"
                 onClick={() => onBpmChange(bpm + 5)}
+                disabled={speedUpEnabled}
                 aria-label="Increase tempo"
+                title="Increase tempo by 5 BPM"
               >
                 +
               </button>
             </div>
 
-            <CountOffButton
-              enabled={countOffEnabled}
-              onToggle={onCountOffToggle}
-            />
+            <button
+              className={`speedup-btn ${speedUpEnabled ? 'active' : ''}`}
+              onClick={() => {
+                setSpeedUpFormStart(speedUpStartBpm);
+                setSpeedUpFormIncrement(speedUpIncrement);
+                setSpeedUpFormMax(speedUpMaxBpm);
+                setSpeedUpFormSteps(speedUpSteps);
+                setShowSpeedUp(true);
+              }}
+              title="Incremental speed-up trainer"
+              aria-label="Incremental speed-up trainer"
+              aria-pressed={speedUpEnabled}
+            >
+              ⏩
+            </button>
 
-            <MetronomeSelector
-              enabled={metronomeEnabled}
-              onToggle={onMetronomeToggle}
+            <LoopButton
+              looping={loopForever}
+              onToggle={onLoopForeverChange}
+              disabled={speedUpEnabled}
             />
 
             <RepeatSelector
               repeatCount={repeatCount}
               onRepeatCountChange={onRepeatCountChange}
+              disabled={speedUpEnabled}
             />
 
-            <LoopButton
-              looping={loopForever}
-              onToggle={onLoopForeverChange}
+            <MetronomeSelector
+              enabled={metronomeEnabled}
+              onToggle={onMetronomeToggle}
             />
 
             <button
@@ -391,9 +444,12 @@ export function PlayerView({
               playbackEngine={playbackEngine}
               onPlaybackEngineChange={onPlaybackEngineChange}
               soundfontLoading={soundfontLoading}
+              countOffEnabled={countOffEnabled}
+              onCountOffToggle={onCountOffToggle}
               onClose={() => setShowSettings(false)}
             />
           )}
+          </div>
         </div>
 
         <div className="tune-actions-bar">
@@ -436,6 +492,7 @@ export function PlayerView({
               setAbcText(tune.abc);
               setShowAbcEditor(!showAbcEditor);
             }}
+            title={showAbcEditor ? 'Hide ABC editor' : 'Edit ABC notation'}
           >
             {showAbcEditor ? 'Hide ABC' : 'Edit ABC'}
           </button>
@@ -474,10 +531,10 @@ export function PlayerView({
             />
             {saveError && <div className="save-error">{saveError}</div>}
             <div className="save-form-actions">
-              <button onClick={handleSaveSong} disabled={!saveName.trim() || !saveTag.trim() || isSaving}>
+              <button onClick={handleSaveSong} disabled={!saveName.trim() || !saveTag.trim() || isSaving} title="Save song">
                 {isSaving ? 'Saving...' : 'Save Song'}
               </button>
-              <button className="cancel-btn" onClick={() => setShowSaveForm(false)}>Cancel</button>
+              <button className="cancel-btn" onClick={() => setShowSaveForm(false)} title="Cancel">Cancel</button>
             </div>
           </div>
         )}
@@ -493,6 +550,7 @@ export function PlayerView({
             <button
               className="reload-abc-btn"
               onClick={() => onReloadAbc(abcText)}
+              title="Reload ABC notation"
             >
               Reload
             </button>
@@ -503,6 +561,7 @@ export function PlayerView({
           <button
             className="debug-link"
             onClick={() => setShowDebug(!showDebug)}
+            title={showDebug ? 'Hide debug info' : 'Show debug info'}
           >
             {showDebug ? 'Hide Debug' : 'Debug'}
           </button>
@@ -516,6 +575,7 @@ export function PlayerView({
               className="about-close"
               onClick={() => setShowAbout(false)}
               aria-label="Close"
+              title="Close"
             >
               ×
             </button>
@@ -546,6 +606,7 @@ export function PlayerView({
               className="about-close"
               onClick={() => setShowChangelog(false)}
               aria-label="Close"
+              title="Close"
             >
               ×
             </button>
@@ -593,6 +654,7 @@ export function PlayerView({
               className="about-close"
               onClick={() => setShowTuneInfo(false)}
               aria-label="Close"
+              title="Close"
             >
               ×
             </button>
@@ -658,6 +720,7 @@ export function PlayerView({
               className="about-close"
               onClick={() => setShowDebug(false)}
               aria-label="Close"
+              title="Close"
             >
               ×
             </button>
@@ -697,6 +760,7 @@ export function PlayerView({
               className="about-close"
               onClick={() => setShowAddToSet(false)}
               aria-label="Close"
+              title="Close"
             >
               ×
             </button>
@@ -781,9 +845,10 @@ export function PlayerView({
                   </label>
                 </div>
                 <div className="add-to-set-actions">
-                  <button className="cancel-btn" onClick={() => setShowAddToSet(false)}>Cancel</button>
+                  <button className="cancel-btn" onClick={() => setShowAddToSet(false)} title="Cancel">Cancel</button>
                   <button
                     className="add-btn"
+                    title="Add to set"
                     disabled={!addToSetSelectedId || addToSetSubmitting}
                     onClick={async () => {
                       if (!addToSetSelectedId) return;
@@ -819,6 +884,86 @@ export function PlayerView({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {showSpeedUp && (
+        <div className="about-overlay" onClick={() => setShowSpeedUp(false)}>
+          <div className="about-popup" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="about-close"
+              onClick={() => setShowSpeedUp(false)}
+              aria-label="Close"
+              title="Close"
+            >
+              ×
+            </button>
+            <h2>Speed-Up Trainer</h2>
+            <div className="add-to-set-form">
+              <div className="add-to-set-field">
+                <label>Start BPM</label>
+                <input
+                  type="number"
+                  value={speedUpFormStart}
+                  onChange={(e) => setSpeedUpFormStart(Number(e.target.value))}
+                  min={30}
+                  max={200}
+                />
+              </div>
+              <div className="add-to-set-field">
+                <label>Increment</label>
+                <input
+                  type="number"
+                  value={speedUpFormIncrement}
+                  onChange={(e) => setSpeedUpFormIncrement(Number(e.target.value))}
+                  min={1}
+                  max={50}
+                />
+              </div>
+              <div className="add-to-set-field">
+                <label>Max BPM</label>
+                <input
+                  type="number"
+                  value={speedUpFormMax}
+                  onChange={(e) => setSpeedUpFormMax(Number(e.target.value))}
+                  min={30}
+                  max={200}
+                />
+              </div>
+              <div className="add-to-set-field">
+                <label>Repeats / step</label>
+                <input
+                  type="number"
+                  value={speedUpFormSteps}
+                  onChange={(e) => setSpeedUpFormSteps(Number(e.target.value))}
+                  min={1}
+                  max={8}
+                />
+              </div>
+              <p className="speedup-hint">
+                Tempo rises each time the tune repeats. Turn on Loop for a continuous ramp.
+              </p>
+              <div className="add-to-set-actions">
+                <button className="cancel-btn" onClick={() => setShowSpeedUp(false)} title="Cancel">Cancel</button>
+                <button
+                  className="add-btn"
+                  title={speedUpEnabled ? 'Turn off trainer' : 'Turn on trainer'}
+                  onClick={() => {
+                    onSpeedUpChange({
+                      enabled: !speedUpEnabled,
+                      startBpm: speedUpFormStart,
+                      increment: speedUpFormIncrement,
+                      maxBpm: speedUpFormMax,
+                      stepsPerIncrease: speedUpFormSteps,
+                    });
+                    setShowSpeedUp(false);
+                  }}
+                >
+                  {speedUpEnabled ? 'Turn Off' : 'Turn On'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

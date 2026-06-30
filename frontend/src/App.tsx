@@ -24,6 +24,11 @@ export function App() {
     () => (localStorage.getItem('playbackEngine') as PlaybackEngine) || 'synth'
   );
   const [soundfontLoading, setSoundfontLoading] = useState(false);
+  const [speedUpEnabled, setSpeedUpEnabled] = useState(false);
+  const [speedUpStartBpm, setSpeedUpStartBpm] = useState(60);
+  const [speedUpIncrement, setSpeedUpIncrement] = useState(5);
+  const [speedUpMaxBpm, setSpeedUpMaxBpm] = useState(120);
+  const [speedUpSteps, setSpeedUpSteps] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [activeSet, setActiveSet] = useState<SetDetail | null>(null);
   const [activeSetIndex, setActiveSetIndex] = useState(0);
@@ -53,6 +58,8 @@ export function App() {
   // Initialize audio player callbacks and restore engine
   useEffect(() => {
     tunePlayer.setOnStateChange(setPlaybackState);
+    // Keep the tempo display in sync as the speed-up trainer ramps the BPM
+    tunePlayer.setOnBpmChange(setBpm);
     tunePlayer.setPlaybackEngine(playbackEngine);
   }, []);
 
@@ -172,6 +179,35 @@ export function App() {
   const handleLoopForeverChange = useCallback((loop: boolean) => {
     setLoopForever(loop);
     tunePlayer.setLooping(loop);
+  }, []);
+
+  const handleSpeedUpChange = useCallback((config: {
+    enabled: boolean;
+    startBpm: number;
+    increment: number;
+    maxBpm: number;
+    stepsPerIncrease: number;
+  }) => {
+    setSpeedUpEnabled(config.enabled);
+    setSpeedUpStartBpm(config.startBpm);
+    setSpeedUpIncrement(config.increment);
+    setSpeedUpMaxBpm(config.maxBpm);
+    setSpeedUpSteps(config.stepsPerIncrease);
+    tunePlayer.configureSpeedUp(config);
+
+    if (config.enabled) {
+      // Take over the master tempo so the display matches the trainer
+      const start = Math.max(30, Math.min(200, config.startBpm));
+      setBpm(start);
+      tunePlayer.setBpm(start);
+      // Loop forever so the tempo can keep ramping; overrides the repeat count
+      setLoopForever(true);
+      tunePlayer.setLooping(true);
+    } else {
+      // Hand control back: stop looping when the trainer is switched off
+      setLoopForever(false);
+      tunePlayer.setLooping(false);
+    }
   }, []);
 
   const handleToneChange = useCallback((tone: SynthType) => {
@@ -316,6 +352,11 @@ export function App() {
       bpm={bpm}
       repeatCount={repeatCount}
       loopForever={loopForever}
+      speedUpEnabled={speedUpEnabled}
+      speedUpStartBpm={speedUpStartBpm}
+      speedUpIncrement={speedUpIncrement}
+      speedUpMaxBpm={speedUpMaxBpm}
+      speedUpSteps={speedUpSteps}
       synthType={synthType}
       transpose={transpose}
       octaveShift={octaveShift}
@@ -332,6 +373,7 @@ export function App() {
       onBpmChange={handleBpmChange}
       onRepeatCountChange={handleRepeatCountChange}
       onLoopForeverChange={handleLoopForeverChange}
+      onSpeedUpChange={handleSpeedUpChange}
       onToneChange={handleToneChange}
       onOctaveChange={handleOctaveChange}
       onTransposeChange={handleTransposeChange}

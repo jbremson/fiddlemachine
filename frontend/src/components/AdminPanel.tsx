@@ -113,18 +113,20 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
   return (
     <div className="about-overlay" onClick={onClose}>
       <div className="about-popup admin-popup" onClick={e => e.stopPropagation()}>
-        <button className="about-close" onClick={onClose} aria-label="Close">×</button>
+        <button className="about-close" onClick={onClose} aria-label="Close" title="Close admin panel">×</button>
         <h2>Admin Panel</h2>
         <div className="admin-tabs">
           <button
             className={`admin-tab${tab === 'users' ? ' active' : ''}`}
             onClick={() => setTab('users')}
+            title="Show users"
           >
             Users
           </button>
           <button
             className={`admin-tab${tab === 'logs' ? ' active' : ''}`}
             onClick={() => setTab('logs')}
+            title="Show activity log"
           >
             Activity Log
           </button>
@@ -204,7 +206,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
         {tab === 'logs' && (
           <div className="admin-logs-list">
             <div className="admin-logs-toolbar">
-              <button className="menu-item" onClick={loadLogs} disabled={logsLoading}>
+              <button className="menu-item" onClick={loadLogs} disabled={logsLoading} title="Refresh activity log">
                 {logsLoading ? 'Refreshing…' : 'Refresh'}
               </button>
             </div>
