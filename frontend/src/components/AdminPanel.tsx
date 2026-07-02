@@ -209,6 +209,14 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
               <button className="menu-item" onClick={loadLogs} disabled={logsLoading} title="Refresh activity log">
                 {logsLoading ? 'Refreshing…' : 'Refresh'}
               </button>
+              <a
+                className="menu-item"
+                href="/api/admin/logs/export"
+                download
+                title="Download the last 60 days of activity as CSV"
+              >
+                Download CSV (60 days)
+              </a>
             </div>
             {logsLoading && logs.length === 0 && <p className="loading">Loading activity…</p>}
             {logsError && <p className="email-error">{logsError}</p>}

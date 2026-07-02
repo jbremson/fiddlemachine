@@ -1,12 +1,17 @@
 """Admin API endpoints."""
 
+import csv
+import io
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from .auth import require_admin
 from .database import (
     UserRecord,
     get_activity_logs,
+    get_activity_logs_since,
     get_all_users,
     get_set_item_count,
     get_set_items,
@@ -14,6 +19,8 @@ from .database import (
     get_user_stats,
     update_user_role,
 )
+
+ACTIVITY_EXPORT_DAYS = 60
 
 admin_router = APIRouter(prefix="/api/admin")
 
@@ -72,6 +79,35 @@ async def list_activity_logs(limit: int = 200, _admin: UserRecord = Depends(requ
         }
         for log in logs
     ]
+
+
+@admin_router.get("/logs/export")
+async def export_activity_logs(_admin: UserRecord = Depends(require_admin)):
+    """Download the last 60 days of activity logs as a CSV file."""
+    logs = get_activity_logs_since(ACTIVITY_EXPORT_DAYS)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["id", "created_at", "user_email", "user_id", "action", "detail", "status", "ip"])
+    for log in logs:
+        writer.writerow([
+            log.id,
+            log.created_at.isoformat(),
+            log.user_email,
+            log.user_id if log.user_id is not None else "",
+            log.action,
+            log.detail or "",
+            log.status if log.status is not None else "",
+            log.ip or "",
+        ])
+    buf.seek(0)
+
+    filename = f"fiddlemachine-activity-last-{ACTIVITY_EXPORT_DAYS}-days.csv"
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @admin_router.get("/users/{user_id}/sets")

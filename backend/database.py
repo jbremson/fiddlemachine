@@ -1255,6 +1255,30 @@ def get_activity_logs(limit: int = 200, offset: int = 0) -> list[ActivityLogReco
         ]
 
 
+def get_activity_logs_since(days: int) -> list[ActivityLogRecord]:
+    """Get all activity log entries from the last `days` days, newest first."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT * FROM activity_log
+               WHERE created_at >= datetime('now', ?)
+               ORDER BY id DESC""",
+            (f"-{int(days)} days",),
+        ).fetchall()
+        return [
+            ActivityLogRecord(
+                id=row['id'],
+                user_email=row['user_email'],
+                user_id=row['user_id'],
+                action=row['action'],
+                detail=row['detail'],
+                status=row['status'],
+                ip=row['ip'],
+                created_at=datetime.fromisoformat(row['created_at']),
+            )
+            for row in rows
+        ]
+
+
 def print_tunes_table() -> None:
     """Print all tunes in a formatted table."""
     tunes = get_all_tunes()
